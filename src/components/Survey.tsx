@@ -73,6 +73,9 @@ export function Survey({
       </div>
 
       <div className="slider-section">
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '-8px' }}>
+          <span className="slider-value">{state.answers[state.currentQuestionIndex]}%</span>
+        </div>
         <input
           type="range"
           min="0"

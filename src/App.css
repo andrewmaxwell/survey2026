@@ -129,6 +129,16 @@
   margin-top: 20px;
 }
 
+.slider-value {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--primary);
+  background: rgba(99, 102, 241, 0.1);
+  padding: 2px 8px;
+  border-radius: 10px;
+  letter-spacing: 0.5px;
+}
+
 .labels-container {
   display: flex;
   justify-content: space-between;

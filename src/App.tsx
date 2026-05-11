@@ -109,14 +109,10 @@ function App() {
     } else {
       if (
         window.confirm(
-          "Are you sure you want to start over? This will reset your current progress.",
+          "Are you sure you want to start over? This will reset your progress and forget your name.",
         )
       ) {
-        setState((prev) => ({
-          ...prev,
-          answers: [...INITIAL_ANSWERS],
-          currentQuestionIndex: 0,
-        }));
+        handleSwitchUser();
       }
     }
   };
