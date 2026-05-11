@@ -299,15 +299,6 @@
   .question-text {
     font-size: 1.25rem;
   }
-
-  .labels-container {
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .label {
-    text-align: center !important;
-  }
 }
 
 .spin {
