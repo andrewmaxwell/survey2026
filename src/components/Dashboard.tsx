@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Check, Loader2, LogOut, User } from "lucide-react";
+import { Check, Loader2, LogOut, RefreshCcw, User } from "lucide-react";
 import type { SurveyRating } from "../api";
 import type { SurveyState } from "../types";
 import { getSubjectScores } from "../utils";
@@ -18,6 +18,7 @@ interface DashboardProps {
   subjectsArray: SubjectInfo[];
   handleSwitchUser: () => void;
   handleStartFriendSurvey: (friendName: string) => void;
+  handleRefresh: () => void;
 }
 
 export function Dashboard({
@@ -27,6 +28,7 @@ export function Dashboard({
   subjectsArray,
   handleSwitchUser,
   handleStartFriendSurvey,
+  handleRefresh,
 }: DashboardProps) {
   const allScores = new Map<string, { dimension: string; score: number }[]>();
   subjectsArray.forEach((s) => {
@@ -56,20 +58,38 @@ export function Dashboard({
         >
           Dashboard
         </h2>
-        <button
-          onClick={handleSwitchUser}
-          className="btn btn-secondary"
-          style={{
-            padding: "8px 16px",
-            borderRadius: "20px",
-            fontSize: "0.85rem",
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-          }}
-        >
-          <LogOut size={16} /> Switch User
-        </button>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button
+            onClick={handleRefresh}
+            disabled={isLoading}
+            className="btn btn-secondary"
+            style={{
+              padding: "8px 16px",
+              borderRadius: "20px",
+              fontSize: "0.85rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+            }}
+          >
+            <RefreshCcw size={16} className={isLoading ? "spin" : ""} />{" "}
+            Refresh
+          </button>
+          <button
+            onClick={handleSwitchUser}
+            className="btn btn-secondary"
+            style={{
+              padding: "8px 16px",
+              borderRadius: "20px",
+              fontSize: "0.85rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+            }}
+          >
+            <LogOut size={16} /> Switch User
+          </button>
+        </div>
       </div>
       <p
         className="subtitle"

@@ -69,6 +69,18 @@ function App() {
     );
   }, [state, hasSubmittedSelf, appState]);
 
+  const handleRefresh = async () => {
+    setIsLoading(true);
+    try {
+      const data = await fetchData();
+      setAnalysisData(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     let active = true;
     if (appState === "analysis") {
@@ -162,6 +174,7 @@ function App() {
       } else {
         setState((prev) => ({
           ...prev,
+          userName: typedName,
           targetName: typedName,
           mode: "self",
           answers: [...INITIAL_ANSWERS],
@@ -174,6 +187,7 @@ function App() {
       // Fallback: just go to survey
       setState((prev) => ({
         ...prev,
+        userName: typedName,
         targetName: typedName,
         mode: "self",
         answers: [...INITIAL_ANSWERS],
@@ -263,38 +277,39 @@ function App() {
   // Derived state for analysis
   const subjectsMap = new Map<
     string,
-    { friendCount: number; raters: Set<string> }
+    { displayName: string; raters: Set<string> }
   >();
 
-  // Find valid subjects (those who rated themselves), ignoring empty rows
   analysisData.forEach((row) => {
-    if (row.rater && row.subject && row.rater === row.subject) {
-      if (!subjectsMap.has(row.subject)) {
-        subjectsMap.set(row.subject, { friendCount: 0, raters: new Set() });
-      }
+    if (!row.subject || !row.rater) return;
+
+    const subjectKey = row.subject.trim().toLowerCase();
+    const raterKey = row.rater.trim().toLowerCase();
+
+    if (!subjectsMap.has(subjectKey)) {
+      subjectsMap.set(subjectKey, {
+        displayName: row.subject.trim(),
+        raters: new Set(),
+      });
     }
+
+    const subjectData = subjectsMap.get(subjectKey)!;
+    subjectData.raters.add(raterKey);
   });
 
-  // Count friends and track raters
-  analysisData.forEach((row) => {
-    if (subjectsMap.has(row.subject)) {
-      const subjectData = subjectsMap.get(row.subject)!;
-      subjectData.raters.add(row.rater);
-      if (row.rater !== row.subject) {
-        subjectData.friendCount++;
-      }
-    }
+  const subjectsArray = Array.from(subjectsMap.values()).map((data) => {
+    // Friend count is total raters minus the person themselves (if they rated themselves)
+    const hasSelfRated = data.raters.has(data.displayName.toLowerCase());
+    const friendCount = hasSelfRated ? data.raters.size - 1 : data.raters.size;
+
+    return {
+      subject: data.displayName,
+      friendCount,
+      hasCurrentRater: data.raters.has(state.userName.trim().toLowerCase()),
+    };
   });
 
-  const subjectsArray = Array.from(subjectsMap.entries()).map(
-    ([subject, data]) => ({
-      subject,
-      friendCount: data.friendCount,
-      hasCurrentRater: data.raters.has(state.userName),
-    }),
-  );
-
-  // Sort available subjects alphabetically as requested
+  // Sort available subjects alphabetically
   subjectsArray.sort((a, b) => a.subject.localeCompare(b.subject));
 
   return (
@@ -333,6 +348,7 @@ function App() {
               subjectsArray={subjectsArray}
               handleSwitchUser={handleSwitchUser}
               handleStartFriendSurvey={handleStartFriendSurvey}
+              handleRefresh={handleRefresh}
             />
           )}
         </AnimatePresence>
