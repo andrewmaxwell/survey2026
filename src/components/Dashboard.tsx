@@ -42,7 +42,6 @@ export function Dashboard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       className="glass-panel card analysis-card"
-      style={{ maxHeight: "90vh", overflowY: "auto" }}
     >
       <div
         style={{
