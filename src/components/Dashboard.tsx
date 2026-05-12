@@ -2,8 +2,15 @@ import { motion } from "framer-motion";
 import { Check, Loader2, LogOut, RefreshCcw, User } from "lucide-react";
 import type { SurveyRating } from "../api";
 import type { SurveyState } from "../types";
-import { getSubjectScores } from "../utils";
+import {
+  getSubjectScores,
+  getSubjectAverageAnswers,
+  getSimilarityPercentage,
+  getGrade,
+  getSimilarAndDifferent,
+} from "../utils";
 import { RadarChart } from "./RadarChart";
+import { QuestionBreakdown } from "./QuestionBreakdown";
 
 interface SubjectInfo {
   subject: string;
@@ -31,8 +38,14 @@ export function Dashboard({
   handleRefresh,
 }: DashboardProps) {
   const allScores = new Map<string, { dimension: string; score: number }[]>();
+  const allAverages = new Map<string, number[]>();
+
   subjectsArray.forEach((s) => {
     allScores.set(s.subject, getSubjectScores(s.subject, analysisData));
+    allAverages.set(
+      s.subject,
+      getSubjectAverageAnswers(s.subject, analysisData),
+    );
   });
 
   return (
@@ -55,7 +68,7 @@ export function Dashboard({
           className="title"
           style={{ margin: 0, fontSize: "1.8rem", textAlign: "left" }}
         >
-          Dashboard
+          Analysis
         </h2>
         <div style={{ display: "flex", gap: "8px" }}>
           <button
@@ -71,8 +84,7 @@ export function Dashboard({
               gap: "6px",
             }}
           >
-            <RefreshCcw size={16} className={isLoading ? "spin" : ""} />{" "}
-            Refresh
+            <RefreshCcw size={16} className={isLoading ? "spin" : ""} /> Refresh
           </button>
           <button
             onClick={handleSwitchUser}
@@ -157,38 +169,46 @@ export function Dashboard({
                   </div>
 
                   {(() => {
-                    const currentScores = allScores.get(subj.subject)!;
-                    if (!currentScores || currentScores.length === 0) return null;
+                    const result = getSimilarAndDifferent(
+                      subj.subject,
+                      subjectsArray,
+                      allAverages,
+                    );
+                    if (!result) return null;
 
-                    const distances = subjectsArray
-                      .filter((s) => s.subject !== subj.subject)
-                      .map((s) => {
-                        const sScores = allScores.get(s.subject)!;
-                        if (!sScores || sScores.length === 0) return { subject: s.subject, distance: Infinity };
-                        let dist = 0;
-                        for (let i = 0; i < 5; i++) {
-                          dist += Math.abs(currentScores[i].score - sScores[i].score);
-                        }
-                        return { subject: s.subject, distance: dist };
-                      })
-                      .filter(d => d.distance !== Infinity)
-                      .sort((a, b) => a.distance - b.distance);
-
-                    if (distances.length < 2) return null;
-
-                    const numToShow = Math.min(5, Math.floor(distances.length / 2));
-                    const mostSimilar = distances.slice(0, numToShow).map((d) => d.subject);
-                    const leastSimilar = [...distances].reverse().slice(0, numToShow).map((d) => d.subject);
+                    const renderList = (
+                      list: { subject: string; similarity: number }[],
+                    ) => {
+                      return list.map((item, idx) => (
+                        <span key={item.subject}>
+                          {idx > 0 && ", "}
+                          {item.subject}{" "}
+                          <span style={{ fontSize: "0.75rem", opacity: 0.6 }}>
+                            ({item.similarity}%)
+                          </span>
+                        </span>
+                      ));
+                    };
 
                     return (
                       <div style={{ marginBottom: "12px" }}>
                         <div style={{ fontSize: "0.85rem", color: "#cbd5e1" }}>
-                          <strong style={{ color: "#f8fafc" }}>Most similar:</strong>{" "}
-                          {mostSimilar.join(", ")}
+                          <strong style={{ color: "#f8fafc" }}>
+                            Most similar:
+                          </strong>{" "}
+                          {renderList(result.mostSimilar)}
                         </div>
-                        <div style={{ fontSize: "0.85rem", color: "#cbd5e1" }}>
-                          <strong style={{ color: "#f8fafc" }}>Least similar:</strong>{" "}
-                          {leastSimilar.join(", ")}
+                        <div
+                          style={{
+                            fontSize: "0.85rem",
+                            color: "#cbd5e1",
+                            marginTop: "4px",
+                          }}
+                        >
+                          <strong style={{ color: "#f8fafc" }}>
+                            Least similar:
+                          </strong>{" "}
+                          {renderList(result.leastSimilar)}
                         </div>
                       </div>
                     );
@@ -199,6 +219,7 @@ export function Dashboard({
                       display: "flex",
                       gap: "8px",
                       alignItems: "center",
+                      marginTop: "12px",
                     }}
                   >
                     {!hasSubmitted && (
@@ -237,12 +258,66 @@ export function Dashboard({
                       </span>
                     )}
                   </div>
+
+                  {(() => {
+                    const userRating = analysisData.find(
+                      (r) =>
+                        r.rater.toLowerCase() ===
+                          state.userName.toLowerCase() &&
+                        r.subject.toLowerCase() === subj.subject.toLowerCase(),
+                    );
+                    if (userRating && subj.friendCount > 0) {
+                      const userAnswers = [];
+                      for (let i = 1; i <= 15; i++) {
+                        userAnswers.push(
+                          Number(userRating[`q${i}` as keyof SurveyRating]) ||
+                            0,
+                        );
+                      }
+                      const accuracy = getSimilarityPercentage(
+                        userAnswers,
+                        allAverages.get(subj.subject)!,
+                      );
+                      const grade = getGrade(accuracy);
+                      const label =
+                        subj.subject === state.userName
+                          ? "Self-awareness score:"
+                          : "Your accuracy score:";
+                      const colorMap: Record<string, string> = {
+                        A: "#4ade80",
+                        B: "#60a5fa",
+                        C: "#facc15",
+                        D: "#fb923c",
+                        F: "#f87171",
+                      };
+
+                      return (
+                        <div
+                          style={{
+                            fontSize: "0.85rem",
+                            color: "#94a3b8",
+                            marginTop: "8px",
+                          }}
+                        >
+                          {label}{" "}
+                          <strong
+                            style={{ color: colorMap[grade] || "#f87171" }}
+                          >
+                            {grade}
+                          </strong>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </div>
             );
           })
         )}
       </div>
+
+      <QuestionBreakdown analysisData={analysisData} />
     </motion.div>
   );
 }
