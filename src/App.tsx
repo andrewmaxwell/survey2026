@@ -277,7 +277,7 @@ function App() {
   // Derived state for analysis
   const subjectsMap = new Map<
     string,
-    { displayName: string; raters: Set<string> }
+    { displayName: string; raters: Set<string>; ratedCount: number }
   >();
 
   analysisData.forEach((row) => {
@@ -290,11 +290,26 @@ function App() {
       subjectsMap.set(subjectKey, {
         displayName: row.subject.trim(),
         raters: new Set(),
+        ratedCount: 0,
+      });
+    }
+    
+    // Also ensure the rater exists in the map if they are also a subject, but we might only want to count ratings for subjects we actually track.
+    // Actually, we can just calculate ratedCount in a separate pass or track it separately.
+    if (!subjectsMap.has(raterKey)) {
+      subjectsMap.set(raterKey, {
+        displayName: row.rater.trim(),
+        raters: new Set(),
+        ratedCount: 0,
       });
     }
 
     const subjectData = subjectsMap.get(subjectKey)!;
     subjectData.raters.add(raterKey);
+
+    if (raterKey !== subjectKey) {
+      subjectsMap.get(raterKey)!.ratedCount += 1;
+    }
   });
 
   const subjectsArray = Array.from(subjectsMap.values()).map((data) => {
@@ -305,6 +320,7 @@ function App() {
     return {
       subject: data.displayName,
       friendCount,
+      ratedCount: data.ratedCount,
       hasCurrentRater: data.raters.has(state.userName.trim().toLowerCase()),
     };
   });

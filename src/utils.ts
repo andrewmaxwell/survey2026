@@ -9,10 +9,79 @@ export const dimensionsList = [
   "Neuroticism",
 ];
 
+// ─── String normalization ────────────────────────────────────────────
+
+/** Normalize a name for case/whitespace-insensitive comparison. */
+const key = (s: string) => s.trim().toLowerCase();
+
+// ─── Filtering helpers ───────────────────────────────────────────────
+
+/** All ratings where `subject` is the person being rated. */
+function ratingsOf(subject: string, data: SurveyRating[]): SurveyRating[] {
+  const k = key(subject);
+  return data.filter((r) => key(r.subject) === k);
+}
+
+/** All ratings where `subject` is rated by someone OTHER than themselves. */
+function friendRatingsOf(
+  subject: string,
+  data: SurveyRating[],
+): SurveyRating[] {
+  const k = key(subject);
+  return data.filter((r) => key(r.subject) === k && key(r.rater) !== k);
+}
+
+/** The self-rating row where rater === subject, or null. */
+function selfRatingOf(
+  subject: string,
+  data: SurveyRating[],
+): SurveyRating | undefined {
+  const k = key(subject);
+  return data.find((r) => key(r.rater) === k && key(r.subject) === k);
+}
+
+/** All ratings made BY `rater` about OTHER people (not themselves). */
+function ratingsBy(rater: string, data: SurveyRating[]): SurveyRating[] {
+  const k = key(rater);
+  return data.filter((r) => key(r.rater) === k && key(r.subject) !== k);
+}
+
+/** Find the specific rating where `rater` rated `subject`. */
+function findRating(
+  rater: string,
+  subject: string,
+  data: SurveyRating[],
+): SurveyRating | undefined {
+  const rk = key(rater);
+  const sk = key(subject);
+  return data.find((r) => key(r.rater) === rk && key(r.subject) === sk);
+}
+
+// ─── Core data extraction ────────────────────────────────────────────
+
+/** Extract 15 answers from a SurveyRating row as a number array. */
+export function extractAnswers(row: SurveyRating): number[] {
+  const out: number[] = [];
+  for (let i = 1; i <= 15; i++) {
+    out.push(Number(row[`q${i}` as keyof SurveyRating]) || 0);
+  }
+  return out;
+}
+
+/** Average an array of 15-element answer arrays into one 15-element array. */
+function averageAnswerRows(ratings: SurveyRating[]): number[] {
+  const totals = new Array(15).fill(0);
+  ratings.forEach((r) => {
+    const answers = extractAnswers(r);
+    answers.forEach((a, i) => (totals[i] += a));
+  });
+  return totals.map((t) => Math.round(t / ratings.length));
+}
+
+// ─── Subject scores (OCEAN dimension averages) ───────────────────────
+
 export function getSubjectScores(subject: string, allData: SurveyRating[]) {
-  const ratings = allData.filter(
-    (r) => r.subject.toLowerCase() === subject.toLowerCase(),
-  );
+  const ratings = ratingsOf(subject, allData);
   if (ratings.length === 0) return [];
 
   const dimScores: Record<string, { total: number; count: number }> = {};
@@ -42,36 +111,41 @@ export function getSubjectScores(subject: string, allData: SurveyRating[]) {
       score = 100 - score;
     }
 
-    return {
-      dimension: d,
-      score,
-    };
+    return { dimension: d, score };
   });
 }
 
-/**
- * Returns the average score for each of the 15 questions for a given subject.
- * Returns an array of 15 numbers.
- */
+// ─── Subject answer averages ─────────────────────────────────────────
+
+/** Average score for each of the 15 questions for a given subject. */
 export function getSubjectAverageAnswers(
   subject: string,
   allData: SurveyRating[],
 ): number[] {
-  const ratings = allData.filter(
-    (r) => r.subject.toLowerCase() === subject.toLowerCase(),
-  );
+  const ratings = ratingsOf(subject, allData);
   if (ratings.length === 0) return new Array(15).fill(50);
-
-  const totals = new Array(15).fill(0);
-  ratings.forEach((r) => {
-    for (let i = 0; i < 15; i++) {
-      const qKey = `q${i + 1}` as keyof SurveyRating;
-      totals[i] += Number(r[qKey]) || 0;
-    }
-  });
-
-  return totals.map((t) => Math.round(t / ratings.length));
+  return averageAnswerRows(ratings);
 }
+
+/**
+ * Average score for each of the 15 questions for a given subject,
+ * explicitly excluding a specific rater's rating from the average.
+ */
+export function getSubjectAverageAnswersExcluding(
+  subject: string,
+  excludedRater: string,
+  allData: SurveyRating[],
+): number[] | null {
+  const sk = key(subject);
+  const ek = key(excludedRater);
+  const ratings = allData.filter(
+    (r) => key(r.subject) === sk && key(r.rater) !== ek,
+  );
+  if (ratings.length === 0) return null;
+  return averageAnswerRows(ratings);
+}
+
+// ─── Similarity ──────────────────────────────────────────────────────
 
 /**
  * Calculates the similarity between two sets of 15 answers.
@@ -86,26 +160,43 @@ export function getSimilarityPercentage(
   for (let i = 0; i < 15; i++) {
     totalDifference += Math.abs(answersA[i] - answersB[i]);
   }
-  // Max possible difference is 15 * 100 = 1500
-  const maxDifference = 1500;
+  const maxDifference = 1500; // 15 * 100
   const similarity = 100 * (1 - totalDifference / maxDifference);
   return Math.round(similarity);
 }
 
+// ─── Accuracy & self-awareness ───────────────────────────────────────
+
 /**
- * Converts an accuracy percentage into a letter grade.
+ * Calculates the accuracy score for a rater rating a subject.
+ * Accuracy is similarity to the average of EVERYONE ELSE's rating of that subject.
  */
-export function getGrade(percentage: number): string {
-  if (percentage >= 90) return "A";
-  if (percentage >= 80) return "B";
-  if (percentage >= 70) return "C";
-  if (percentage >= 60) return "D";
-  return "F";
+export function getAccuracyScore(
+  rater: string,
+  subject: string,
+  allData: SurveyRating[],
+): number | null {
+  const rating = findRating(rater, subject, allData);
+  if (!rating) return null;
+  const othersAvg = getSubjectAverageAnswersExcluding(subject, rater, allData);
+  if (!othersAvg) return null;
+  return getSimilarityPercentage(extractAnswers(rating), othersAvg);
 }
 
 /**
- * Returns the most and least similar subjects for a given subject.
+ * Calculates self-awareness score for a subject.
+ * Accuracy of their self-rating compared to friends' average rating of them.
  */
+export function getSelfAwarenessScore(
+  subject: string,
+  allData: SurveyRating[],
+): number | null {
+  return getAccuracyScore(subject, subject, allData);
+}
+
+// ─── Similar / different ─────────────────────────────────────────────
+
+/** Returns the most and least similar subjects for a given subject. */
 export function getSimilarAndDifferent(
   subjectName: string,
   subjectsArray: { subject: string }[],
@@ -136,9 +227,9 @@ export function getSimilarAndDifferent(
   return { mostSimilar, leastSimilar };
 }
 
-/**
- * Calculates statistics for a single question given all its answers.
- */
+// ─── Question stats ──────────────────────────────────────────────────
+
+/** Calculates statistics for a single question given all its answers. */
 export function getQuestionStats(answers: number[]): {
   avg: number;
   median: number;
@@ -178,14 +269,7 @@ export function getQuestionStats(answers: number[]): {
   return { avg, median, stdDev, polarization, bins };
 }
 
-/** Helper: extract 15 answers from a SurveyRating row as a number array. */
-export function extractAnswers(row: SurveyRating): number[] {
-  const out: number[] = [];
-  for (let i = 1; i <= 15; i++) {
-    out.push(Number(row[`q${i}` as keyof SurveyRating]) || 0);
-  }
-  return out;
-}
+// ─── Blind spots ─────────────────────────────────────────────────────
 
 /**
  * Self-Perception Gap ("Blind Spot" Score).
@@ -202,31 +286,14 @@ export function getBlindSpots(
   friendAvg: number;
   gap: number;
 }[] {
-  const subjectLower = subject.toLowerCase();
+  const self = selfRatingOf(subject, allData);
+  if (!self) return [];
 
-  const selfRating = allData.find(
-    (r) =>
-      r.rater.toLowerCase() === subjectLower &&
-      r.subject.toLowerCase() === subjectLower,
-  );
-  if (!selfRating) return [];
+  const friends = friendRatingsOf(subject, allData);
+  if (friends.length === 0) return [];
 
-  const friendRatings = allData.filter(
-    (r) =>
-      r.subject.toLowerCase() === subjectLower &&
-      r.rater.toLowerCase() !== subjectLower,
-  );
-  if (friendRatings.length === 0) return [];
-
-  const selfAnswers = extractAnswers(selfRating);
-  const friendTotals = new Array(15).fill(0);
-  friendRatings.forEach((r) => {
-    const answers = extractAnswers(r);
-    answers.forEach((a, i) => (friendTotals[i] += a));
-  });
-  const friendAvgs = friendTotals.map((t) =>
-    Math.round(t / friendRatings.length),
-  );
+  const selfAnswers = extractAnswers(self);
+  const friendAvgs = averageAnswerRows(friends);
 
   const gaps = selfAnswers.map((selfVal, i) => ({
     questionIndex: i,
@@ -239,34 +306,45 @@ export function getBlindSpots(
   return gaps.slice(0, maxResults);
 }
 
+// ─── Leaderboards ────────────────────────────────────────────────────
+
 /**
- * "Who Knows You Best?" Leaderboard.
- * For a given subject, ranks all raters by how close their individual
- * rating was to the consensus average of ALL ratings for that subject.
+ * "Knows best" Leaderboard.
+ * For a given rater, ranks the people they rated by how accurate their rating was.
  */
-export function getWhoKnowsYouBest(
+export function getKnowsBest(
+  rater: string,
+  allData: SurveyRating[],
+): { person: string; accuracy: number }[] {
+  return ratingsBy(rater, allData)
+    .map((r) => ({
+      person: r.subject,
+      accuracy: getAccuracyScore(rater, r.subject, allData),
+    }))
+    .filter((r): r is { person: string; accuracy: number } => r.accuracy !== null)
+    .sort((a, b) => b.accuracy - a.accuracy)
+    .slice(0, 5);
+}
+
+/**
+ * "Best known by" Leaderboard.
+ * For a given subject, ranks all their raters by how accurate they were.
+ */
+export function getBestKnownBy(
   subject: string,
   allData: SurveyRating[],
-): { rater: string; accuracy: number }[] {
-  const subjectLower = subject.toLowerCase();
-
-  const allRatings = allData.filter(
-    (r) => r.subject.toLowerCase() === subjectLower,
-  );
-  if (allRatings.length < 2) return [];
-
-  const consensusAvg = getSubjectAverageAnswers(subject, allData);
-
-  const raterScores = allRatings
-    .filter((r) => r.rater.toLowerCase() !== subjectLower)
+): { person: string; accuracy: number }[] {
+  return friendRatingsOf(subject, allData)
     .map((r) => ({
-      rater: r.rater,
-      accuracy: getSimilarityPercentage(extractAnswers(r), consensusAvg),
-    }));
-
-  raterScores.sort((a, b) => b.accuracy - a.accuracy);
-  return raterScores;
+      person: r.rater,
+      accuracy: getAccuracyScore(r.rater, subject, allData),
+    }))
+    .filter((r): r is { person: string; accuracy: number } => r.accuracy !== null)
+    .sort((a, b) => b.accuracy - a.accuracy)
+    .slice(0, 5);
 }
+
+// ─── Controversy ─────────────────────────────────────────────────────
 
 /**
  * Controversy Index for a given subject.
@@ -278,11 +356,7 @@ export function getControversyIndex(
   subject: string,
   allData: SurveyRating[],
 ): { overall: number; perQuestion: number[] } | null {
-  const subjectLower = subject.toLowerCase();
-
-  const ratings = allData.filter(
-    (r) => r.subject.toLowerCase() === subjectLower,
-  );
+  const ratings = ratingsOf(subject, allData);
   if (ratings.length < 2) return null;
 
   const perQuestion: number[] = [];
@@ -304,6 +378,8 @@ export function getControversyIndex(
 
   return { overall, perQuestion };
 }
+
+// ─── Dimension leaderboard ───────────────────────────────────────────
 
 /**
  * Dimension Leaderboard.
@@ -327,3 +403,251 @@ export function getDimensionLeaderboard(
   return results;
 }
 
+// ─── Similarity heatmap ──────────────────────────────────────────────
+
+/** Compute NxN similarity matrix for all subjects. */
+export function getSimilarityMatrix(
+  subjects: string[],
+  allAverages: Map<string, number[]>,
+): { subjects: string[]; matrix: number[][] } {
+  const matrix = subjects.map((a) => {
+    const aAvg = allAverages.get(a);
+    return subjects.map((b) => {
+      if (a === b) return 100;
+      const bAvg = allAverages.get(b);
+      if (!aAvg || !bAvg) return 0;
+      return getSimilarityPercentage(aAvg, bAvg);
+    });
+  });
+  return { subjects, matrix };
+}
+
+// ─── Personality archetypes ──────────────────────────────────────────
+
+export interface Archetype {
+  name: string;
+  emoji: string;
+  description: string;
+}
+
+/**
+ * Archetype mapping based on the top-2 *notable* trait signals.
+ *
+ * A "signal" is a dimension that deviates significantly from neutral (50).
+ * We translate the raw OCEAN dimensions into friendlier trait names:
+ *   - High Openness → "Curious"
+ *   - High Conscientiousness → "Disciplined"
+ *   - High Extraversion → "Social"
+ *   - High Agreeableness → "Warm"
+ *   - High Neuroticism → "Sensitive" (not pejorative)
+ *   - Low Openness → "Grounded"
+ *   - Low Extraversion → "Reflective"
+ *   - Low Agreeableness → "Direct"
+ *   - Low Neuroticism → "Steady"
+ */
+
+interface TraitSignal {
+  trait: string; // e.g. "Curious", "Social", "Direct"
+  strength: number; // absolute deviation from 50
+}
+
+// Map from combo of top-2 signals → archetype. Keys are sorted alphabetically.
+const comboArchetypes: Record<string, Archetype> = {
+  "Curious+Disciplined":  { name: "The Visionary",     emoji: "🔮", description: "Creative yet disciplined — turns big ideas into reality" },
+  "Curious+Social":       { name: "The Explorer",      emoji: "🧭", description: "Adventurous and outgoing, always chasing the next experience" },
+  "Curious+Warm":         { name: "The Idealist",      emoji: "🌈", description: "A compassionate dreamer who sees the best in everyone" },
+  "Curious+Sensitive":    { name: "The Poet",          emoji: "🪶", description: "Deeply thoughtful with a rich inner world" },
+  "Curious+Steady":       { name: "The Sage",          emoji: "📚", description: "Intellectually curious and unflappable under pressure" },
+  "Curious+Direct":       { name: "The Maverick",      emoji: "🚀", description: "Bold and original, challenges conventions" },
+  "Curious+Reflective":   { name: "The Philosopher",   emoji: "🤔", description: "A deep thinker who finds meaning in ideas" },
+  "Disciplined+Social":   { name: "The Captain",       emoji: "⚓", description: "Organized and assertive, a natural leader" },
+  "Disciplined+Warm":     { name: "The Guardian",      emoji: "🛡️", description: "Dependable, caring, and always looking out for others" },
+  "Disciplined+Sensitive": { name: "The Perfectionist", emoji: "🎯", description: "Meticulous and driven, holds themselves to high standards" },
+  "Disciplined+Steady":   { name: "The Architect",     emoji: "📐", description: "Methodical, reliable, and cool under pressure" },
+  "Disciplined+Direct":   { name: "The Strategist",    emoji: "♟️", description: "Efficient and straightforward, gets things done" },
+  "Social+Warm":          { name: "The Connector",     emoji: "🌟", description: "A natural social glue who brings people together" },
+  "Social+Sensitive":     { name: "The Performer",     emoji: "🎭", description: "Expressive and passionate, brings big energy everywhere" },
+  "Social+Steady":        { name: "The Catalyst",      emoji: "⚡", description: "Radiates confident energy and sparks action" },
+  "Social+Direct":        { name: "The Firebrand",     emoji: "🔥", description: "Outspoken and magnetic, never afraid to take charge" },
+  "Warm+Sensitive":       { name: "The Empath",        emoji: "💜", description: "Deeply feeling and compassionate, absorbs the emotions around them" },
+  "Warm+Steady":          { name: "The Peacemaker",    emoji: "🕊️", description: "Harmony-seeking and kind, everyone's trusted friend" },
+  "Warm+Direct":          { name: "The Coach",         emoji: "🏅", description: "Caring but honest — gives you the truth because they care" },
+  "Sensitive+Reflective": { name: "The Artist",        emoji: "🎨", description: "Emotionally deep and introspective, sees the world through a unique lens" },
+  "Direct+Steady":        { name: "The Rock",          emoji: "🪨", description: "Unshakable and straightforward, says it like it is" },
+  "Grounded+Disciplined": { name: "The Anchor",        emoji: "⚓", description: "Practical and reliable, the person everyone can count on" },
+  "Grounded+Warm":        { name: "The Nurturer",      emoji: "🌻", description: "Down-to-earth and caring, brings comfort to those around them" },
+  "Reflective+Steady":    { name: "The Observer",      emoji: "🔭", description: "Quiet, calm, and perceptive — takes it all in" },
+  "Reflective+Warm":      { name: "The Counselor",     emoji: "🫶", description: "A thoughtful listener who makes people feel understood" },
+};
+
+// Single-signal fallbacks
+const singleArchetypes: Record<string, Archetype> = {
+  Curious:     { name: "The Innovator",    emoji: "💡", description: "Endlessly curious, always thinking outside the box" },
+  Disciplined: { name: "The Architect",    emoji: "📐", description: "Methodical and reliable, builds things that last" },
+  Social:      { name: "The Catalyst",     emoji: "⚡", description: "Pure social energy, lights up every room" },
+  Warm:        { name: "The Peacemaker",   emoji: "🕊️", description: "Harmony-seeking and kind, everyone's trusted friend" },
+  Sensitive:   { name: "The Sentinel",     emoji: "🔍", description: "Highly attuned and perceptive, feels things deeply" },
+  Steady:      { name: "The Rock",         emoji: "🪨", description: "Calm, composed, and unshakable" },
+  Direct:      { name: "The Maverick",     emoji: "🚀", description: "Speaks their mind and does things their own way" },
+  Reflective:  { name: "The Philosopher",  emoji: "🤔", description: "A quiet thinker who finds depth in everything" },
+  Grounded:    { name: "The Anchor",       emoji: "⚓", description: "Practical and steady, prefers the tried-and-true" },
+};
+
+const balanced: Archetype = { name: "The Balanced", emoji: "⚖️", description: "Well-rounded with no single trait dominating — adaptable to any situation" };
+
+/**
+ * Convert OCEAN dimension scores into human-readable trait signals.
+ * Only returns signals that deviate meaningfully from neutral (50).
+ */
+function getTraitSignals(
+  scores: { dimension: string; score: number }[],
+  threshold = 10,
+): TraitSignal[] {
+  const signals: TraitSignal[] = [];
+
+  for (const { dimension, score } of scores) {
+    const deviation = score - 50;
+    const absDeviation = Math.abs(deviation);
+    if (absDeviation < threshold) continue;
+
+    // Map dimension + direction to a friendly trait name
+    let trait: string;
+    if (deviation > 0) {
+      trait = {
+        Openness: "Curious",
+        Conscientiousness: "Disciplined",
+        Extraversion: "Social",
+        Agreeableness: "Warm",
+        Neuroticism: "Sensitive",
+      }[dimension] ?? dimension;
+    } else {
+      trait = {
+        Openness: "Grounded",
+        Conscientiousness: "Spontaneous",
+        Extraversion: "Reflective",
+        Agreeableness: "Direct",
+        Neuroticism: "Steady",
+      }[dimension] ?? dimension;
+    }
+
+    signals.push({ trait, strength: absDeviation });
+  }
+
+  return signals.sort((a, b) => b.strength - a.strength);
+}
+
+/**
+ * Determine personality archetype from OCEAN scores.
+ * Uses deviation from neutral (50) so only genuinely notable traits matter.
+ * Considers BOTH high and low dimensions as meaningful signals.
+ */
+export function getArchetype(
+  scores: { dimension: string; score: number }[],
+): Archetype {
+  if (scores.length === 0) return { name: "The Mystery", emoji: "❓", description: "Not enough data yet" };
+
+  const signals = getTraitSignals(scores);
+
+  // No standout traits → balanced
+  if (signals.length === 0) return balanced;
+
+  // Single standout trait
+  if (signals.length === 1) {
+    return singleArchetypes[signals[0].trait] ?? balanced;
+  }
+
+  // Top-2 combo (alphabetical key)
+  const comboKey = [signals[0].trait, signals[1].trait].sort().join("+");
+  return comboArchetypes[comboKey]
+    ?? singleArchetypes[signals[0].trait]
+    ?? balanced;
+}
+
+// ─── Rater quality stats ─────────────────────────────────────────────
+
+export interface RaterStats {
+  name: string;
+  ratingsGiven: number;
+  avgAnswer: number;
+  answerStdDev: number;
+  uniqueValues: number;
+  avgDeviationFromConsensus: number;
+}
+
+/**
+ * Analyze the quality of a rater's ratings.
+ * Measures whether they use the full range, give thoughtful distinct answers,
+ * or just spam 50s / random values.
+ */
+export function getRaterStats(
+  rater: string,
+  allData: SurveyRating[],
+): RaterStats | null {
+  const given = ratingsBy(rater, allData);
+  if (given.length === 0) return null;
+
+  // Collect all individual answer values across all their ratings
+  const allAnswerValues: number[] = [];
+  given.forEach((r) => allAnswerValues.push(...extractAnswers(r)));
+
+  const avg = Math.round(
+    allAnswerValues.reduce((a, b) => a + b, 0) / allAnswerValues.length,
+  );
+
+  const variance =
+    allAnswerValues.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) /
+    allAnswerValues.length;
+  const answerStdDev = Math.round(Math.sqrt(variance));
+
+  const uniqueValues = new Set(allAnswerValues).size;
+
+  // Average deviation from consensus: for each person they rated,
+  // how far was their rating from the average of everyone else's?
+  let totalDeviation = 0;
+  let deviationCount = 0;
+  given.forEach((r) => {
+    const othersAvg = getSubjectAverageAnswersExcluding(
+      r.subject,
+      rater,
+      allData,
+    );
+    if (othersAvg) {
+      const myAnswers = extractAnswers(r);
+      let diff = 0;
+      for (let i = 0; i < 15; i++) {
+        diff += Math.abs(myAnswers[i] - othersAvg[i]);
+      }
+      totalDeviation += diff / 15; // Average per-question deviation
+      deviationCount++;
+    }
+  });
+
+  const avgDeviationFromConsensus =
+    deviationCount > 0 ? Math.round(totalDeviation / deviationCount) : 0;
+
+  return {
+    name: rater,
+    ratingsGiven: given.length,
+    avgAnswer: avg,
+    answerStdDev,
+    uniqueValues,
+    avgDeviationFromConsensus,
+  };
+}
+
+/**
+ * Get quality stats for ALL raters.
+ * Returns sorted by deviation from consensus (most deviant first).
+ */
+export function getAllRaterStats(allData: SurveyRating[]): RaterStats[] {
+  const raters = new Set<string>();
+  allData.forEach((r) => raters.add(r.rater.trim()));
+
+  const stats: RaterStats[] = [];
+  raters.forEach((name) => {
+    const s = getRaterStats(name, allData);
+    if (s) stats.push(s);
+  });
+
+  return stats.sort((a, b) => b.avgDeviationFromConsensus - a.avgDeviationFromConsensus);
+}

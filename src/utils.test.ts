@@ -3,14 +3,20 @@ import {
   getSubjectScores,
   getSubjectAverageAnswers,
   getSimilarityPercentage,
-  getGrade,
   getSimilarAndDifferent,
   getQuestionStats,
   extractAnswers,
   getBlindSpots,
-  getWhoKnowsYouBest,
+  getBestKnownBy,
+  getKnowsBest,
   getControversyIndex,
   getDimensionLeaderboard,
+  getSubjectAverageAnswersExcluding,
+  getAccuracyScore,
+  getSelfAwarenessScore,
+  getArchetype,
+  getSimilarityMatrix,
+  getRaterStats,
 } from "./utils";
 import type { SurveyRating } from "./api";
 
@@ -172,15 +178,36 @@ describe("utils", () => {
     });
   });
 
-  describe("getGrade", () => {
-    it("should assign correct grades", () => {
-      expect(getGrade(95)).toBe("A");
-      expect(getGrade(90)).toBe("A");
-      expect(getGrade(85)).toBe("B");
-      expect(getGrade(79)).toBe("C");
-      expect(getGrade(60)).toBe("D");
-      expect(getGrade(59)).toBe("F");
-      expect(getGrade(0)).toBe("F");
+  describe("getSubjectAverageAnswersExcluding", () => {
+    it("should calculate average excluding specific rater", () => {
+      const avg = getSubjectAverageAnswersExcluding("Bob", "Charlie", mockData);
+      expect(avg).not.toBeNull();
+      // Charlie gave all 0s, Alice gave all 100s. Excluding Charlie, Bob's average should be 100.
+      avg?.forEach((a) => expect(a).toBe(100));
+    });
+
+    it("should return null if no other raters exist", () => {
+      const avg = getSubjectAverageAnswersExcluding("Bob", "Alice", [mockData[0]]); // only Alice's rating
+      expect(avg).toBeNull();
+    });
+  });
+
+  describe("getAccuracyScore & getSelfAwarenessScore", () => {
+    it("should calculate accuracy correctly", () => {
+      // Alice rating Bob is 100s. Charlie rating Bob is 0s.
+      // Charlie rating Bob excluding Charlie is just Alice rating Bob (100s).
+      // Charlie's accuracy is similarity between 0s and 100s = 0.
+      expect(getAccuracyScore("Charlie", "Bob", mockData)).toBe(0);
+      expect(getAccuracyScore("Alice", "Bob", mockData)).toBe(0); // Alice 100s vs Charlie 0s = 0
+    });
+
+    it("should calculate self-awareness score correctly", () => {
+      // Alice rating Alice is 50s. If we add a friend who rates Alice 50s, self-awareness is 100.
+      const data = [
+        ...mockData,
+        { ...mockData[0], rater: "Bob", subject: "Alice", q1: 50, q2: 50, q3: 50, q4: 50, q5: 50, q6: 50, q7: 50, q8: 50, q9: 50, q10: 50, q11: 50, q12: 50, q13: 50, q14: 50, q15: 50 }
+      ];
+      expect(getSelfAwarenessScore("Alice", data)).toBe(100);
     });
   });
 
@@ -334,21 +361,26 @@ describe("utils", () => {
     });
   });
 
-  describe("getWhoKnowsYouBest", () => {
+  describe("getBestKnownBy & getKnowsBest", () => {
     it("should rank raters by accuracy", () => {
-      const leaderboard = getWhoKnowsYouBest("Alice", analysisData);
+      const leaderboard = getBestKnownBy("Alice", analysisData);
       expect(leaderboard).toHaveLength(2); // Bob and Charlie
-      // Bob should be more accurate than Charlie
-      expect(leaderboard[0].rater).toBe("Bob");
-      expect(leaderboard[1].rater).toBe("Charlie");
-      expect(leaderboard[0].accuracy).toBeGreaterThan(
-        leaderboard[1].accuracy,
-      );
+      expect(leaderboard[0].person).toBe("Bob");
+      expect(leaderboard[1].person).toBe("Charlie");
+      expect(leaderboard[0].accuracy).toBeGreaterThan(leaderboard[1].accuracy);
     });
 
-    it("should return empty for person with only 1 rating", () => {
-      const leaderboard = getWhoKnowsYouBest("Bob", analysisData);
-      expect(leaderboard).toEqual([]);
+    it("should rank subjects by rater accuracy", () => {
+      const data = [
+        { ...analysisData[0], rater: "Dave", subject: "Alice" }, // Dave rates Alice
+        { ...analysisData[0], rater: "Dave", subject: "Bob" },   // Dave rates Bob
+        // friends rate Alice:
+        { ...analysisData[1] }, // Bob rates Alice
+        // friends rate Bob:
+        { ...analysisData[0], rater: "Alice", subject: "Bob" }
+      ];
+      const knowsBest = getKnowsBest("Dave", data);
+      expect(knowsBest).toBeInstanceOf(Array);
     });
   });
 
@@ -393,5 +425,92 @@ describe("utils", () => {
       expect(leaderboard).toEqual([]);
     });
   });
-});
 
+  describe("getArchetype", () => {
+    it("should return combo archetype for two notable signals", () => {
+      const scores = [
+        { dimension: "Openness", score: 80 },       // +30 → Curious
+        { dimension: "Extraversion", score: 75 },    // +25 → Social
+        { dimension: "Conscientiousness", score: 50 },
+        { dimension: "Agreeableness", score: 50 },
+        { dimension: "Neuroticism", score: 30 },     // -20 → Steady (but weaker)
+      ];
+      const arch = getArchetype(scores);
+      expect(arch.name).toBe("The Explorer"); // Curious + Social
+    });
+
+    it("should use deviation direction — low neuroticism is 'Steady'", () => {
+      const scores = [
+        { dimension: "Openness", score: 75 },       // +25 → Curious
+        { dimension: "Neuroticism", score: 20 },     // -30 → Steady
+        { dimension: "Conscientiousness", score: 50 },
+        { dimension: "Extraversion", score: 50 },
+        { dimension: "Agreeableness", score: 50 },
+      ];
+      const arch = getArchetype(scores);
+      expect(arch.name).toBe("The Sage"); // Curious + Steady
+    });
+
+    it("should return single-signal archetype when only one stands out", () => {
+      const scores = [
+        { dimension: "Openness", score: 90 },
+        { dimension: "Extraversion", score: 50 },
+        { dimension: "Conscientiousness", score: 50 },
+        { dimension: "Agreeableness", score: 50 },
+        { dimension: "Neuroticism", score: 50 },
+      ];
+      const arch = getArchetype(scores);
+      expect(arch.name).toBe("The Innovator"); // Only Curious
+    });
+
+    it("should return Balanced when all scores cluster around 50", () => {
+      const scores = [
+        { dimension: "Openness", score: 52 },
+        { dimension: "Conscientiousness", score: 48 },
+        { dimension: "Extraversion", score: 55 },
+        { dimension: "Agreeableness", score: 50 },
+        { dimension: "Neuroticism", score: 47 },
+      ];
+      const arch = getArchetype(scores);
+      expect(arch.name).toBe("The Balanced");
+    });
+
+    it("should handle empty scores", () => {
+      const arch = getArchetype([]);
+      expect(arch.name).toBe("The Mystery");
+    });
+  });
+
+  describe("getSimilarityMatrix", () => {
+    it("should return 100 on diagonal", () => {
+      const subjects = ["Alice", "Bob"];
+      const avgs = new Map([
+        ["Alice", new Array(15).fill(50)],
+        ["Bob", new Array(15).fill(60)],
+      ]);
+      const { matrix } = getSimilarityMatrix(subjects, avgs);
+      expect(matrix[0][0]).toBe(100);
+      expect(matrix[1][1]).toBe(100);
+      expect(matrix[0][1]).toBe(matrix[1][0]); // symmetric
+      expect(matrix[0][1]).toBe(90);
+    });
+  });
+
+  describe("getRaterStats", () => {
+    it("should compute rater statistics", () => {
+      const stats = getRaterStats("Alice", [
+        ...analysisData,
+        // Alice rates Bob
+        { ...analysisData[0], rater: "Alice", subject: "Bob" },
+      ]);
+      expect(stats).not.toBeNull();
+      expect(stats!.ratingsGiven).toBeGreaterThan(0);
+      expect(stats!.answerStdDev).toBeGreaterThanOrEqual(0);
+      expect(stats!.uniqueValues).toBeGreaterThan(0);
+    });
+
+    it("should return null for unknown rater", () => {
+      expect(getRaterStats("Nobody", analysisData)).toBeNull();
+    });
+  });
+});

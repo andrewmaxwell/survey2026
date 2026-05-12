@@ -4,7 +4,7 @@ import { questions } from "../data";
 import {
   dimensionsList,
   getBlindSpots,
-  getWhoKnowsYouBest,
+  getBestKnownBy,
   getControversyIndex,
   getDimensionLeaderboard,
 } from "../utils";
@@ -34,7 +34,7 @@ export function Insights({
   const blindSpots = getBlindSpots(currentUser, analysisData, 3);
 
   // ── Who Knows You Best ──
-  const whoKnows = getWhoKnowsYouBest(currentUser, analysisData);
+  const whoKnows = getBestKnownBy(currentUser, analysisData);
 
   // ── Controversy Index ──
   const controversyRanking = subjects
@@ -219,12 +219,12 @@ export function Insights({
                 gap: "8px",
               }}
             >
-              {whoKnows.map((entry, i) => {
+              {whoKnows.map((entry: { person: string; accuracy: number }, i: number) => {
                 const barWidth = Math.max(entry.accuracy, 5);
                 const isTop = i === 0;
                 return (
                   <div
-                    key={entry.rater}
+                    key={entry.person}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -277,7 +277,7 @@ export function Insights({
                           color: "#f1f5f9",
                         }}
                       >
-                        {entry.rater}
+                        {entry.person}
                       </div>
                       <div
                         style={{
