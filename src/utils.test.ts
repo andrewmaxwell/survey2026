@@ -6,6 +6,11 @@ import {
   getGrade,
   getSimilarAndDifferent,
   getQuestionStats,
+  extractAnswers,
+  getBlindSpots,
+  getWhoKnowsYouBest,
+  getControversyIndex,
+  getDimensionLeaderboard,
 } from "./utils";
 import type { SurveyRating } from "./api";
 
@@ -120,6 +125,11 @@ describe("utils", () => {
 
     it("should return empty array for unknown subject", () => {
       expect(getSubjectScores("Unknown", mockData)).toEqual([]);
+    });
+
+    it("should match subjects case-insensitively", () => {
+      const scores = getSubjectScores("bob", mockData);
+      expect(scores).toHaveLength(5);
     });
   });
 
@@ -249,4 +259,139 @@ describe("utils", () => {
       expect(stats.polarization).toBe("Low (Consensus)");
     });
   });
+
+  describe("extractAnswers", () => {
+    it("should extract 15 answers from a SurveyRating", () => {
+      const answers = extractAnswers(mockData[0]);
+      expect(answers).toHaveLength(15);
+      answers.forEach((a) => expect(a).toBe(100));
+    });
+  });
+
+  // Richer mock data for the new analysis functions
+  const analysisData: SurveyRating[] = [
+    // Alice self-rates
+    {
+      rater: "Alice",
+      subject: "Alice",
+      q1: 80, q2: 80, q3: 80, q4: 80, q5: 80,
+      q6: 80, q7: 80, q8: 80, q9: 80, q10: 80,
+      q11: 80, q12: 80, q13: 80, q14: 80, q15: 80,
+    },
+    // Bob rates Alice — very accurate (close to self)
+    {
+      rater: "Bob",
+      subject: "Alice",
+      q1: 75, q2: 85, q3: 78, q4: 82, q5: 77,
+      q6: 83, q7: 79, q8: 81, q9: 76, q10: 84,
+      q11: 78, q12: 82, q13: 77, q14: 83, q15: 79,
+    },
+    // Charlie rates Alice — way off (big gaps)
+    {
+      rater: "Charlie",
+      subject: "Alice",
+      q1: 20, q2: 30, q3: 25, q4: 35, q5: 40,
+      q6: 25, q7: 30, q8: 35, q9: 20, q10: 40,
+      q11: 25, q12: 30, q13: 35, q14: 20, q15: 40,
+    },
+    // Bob self-rates
+    {
+      rater: "Bob",
+      subject: "Bob",
+      q1: 50, q2: 50, q3: 50, q4: 50, q5: 50,
+      q6: 50, q7: 50, q8: 50, q9: 50, q10: 50,
+      q11: 50, q12: 50, q13: 50, q14: 50, q15: 50,
+    },
+    // Charlie self-rates
+    {
+      rater: "Charlie",
+      subject: "Charlie",
+      q1: 30, q2: 30, q3: 30, q4: 30, q5: 30,
+      q6: 30, q7: 30, q8: 30, q9: 30, q10: 30,
+      q11: 30, q12: 30, q13: 30, q14: 30, q15: 30,
+    },
+  ];
+
+  describe("getBlindSpots", () => {
+    it("should return top blind spots sorted by gap size", () => {
+      const spots = getBlindSpots("Alice", analysisData, 3);
+      expect(spots).toHaveLength(3);
+      // Each spot should have gap > 0
+      spots.forEach((s) => expect(s.gap).toBeGreaterThan(0));
+      // Should be sorted descending by gap
+      expect(spots[0].gap).toBeGreaterThanOrEqual(spots[1].gap);
+      expect(spots[1].gap).toBeGreaterThanOrEqual(spots[2].gap);
+    });
+
+    it("should return empty for person with no friend ratings", () => {
+      const spots = getBlindSpots("Bob", analysisData);
+      expect(spots).toEqual([]);
+    });
+
+    it("should return empty for unknown person", () => {
+      const spots = getBlindSpots("Unknown", analysisData);
+      expect(spots).toEqual([]);
+    });
+  });
+
+  describe("getWhoKnowsYouBest", () => {
+    it("should rank raters by accuracy", () => {
+      const leaderboard = getWhoKnowsYouBest("Alice", analysisData);
+      expect(leaderboard).toHaveLength(2); // Bob and Charlie
+      // Bob should be more accurate than Charlie
+      expect(leaderboard[0].rater).toBe("Bob");
+      expect(leaderboard[1].rater).toBe("Charlie");
+      expect(leaderboard[0].accuracy).toBeGreaterThan(
+        leaderboard[1].accuracy,
+      );
+    });
+
+    it("should return empty for person with only 1 rating", () => {
+      const leaderboard = getWhoKnowsYouBest("Bob", analysisData);
+      expect(leaderboard).toEqual([]);
+    });
+  });
+
+  describe("getControversyIndex", () => {
+    it("should return a controversy score for a person with multiple raters", () => {
+      const result = getControversyIndex("Alice", analysisData);
+      expect(result).not.toBeNull();
+      expect(result!.overall).toBeGreaterThan(0);
+      expect(result!.perQuestion).toHaveLength(15);
+    });
+
+    it("should return null for person with only 1 rating", () => {
+      expect(getControversyIndex("Bob", analysisData)).toBeNull();
+    });
+
+    it("should return higher controversy when raters disagree more", () => {
+      // Alice has Bob (close to 80) and Charlie (close to 30) rating her — high disagreement
+      const result = getControversyIndex("Alice", analysisData);
+      expect(result!.overall).toBeGreaterThan(20);
+    });
+  });
+
+  describe("getDimensionLeaderboard", () => {
+    it("should return subjects ranked by dimension score", () => {
+      const subjects = ["Alice", "Bob", "Charlie"];
+      const leaderboard = getDimensionLeaderboard(
+        "Openness",
+        subjects,
+        analysisData,
+      );
+      expect(leaderboard).toHaveLength(3);
+      // Scores should be in descending order
+      for (let i = 0; i < leaderboard.length - 1; i++) {
+        expect(leaderboard[i].score).toBeGreaterThanOrEqual(
+          leaderboard[i + 1].score,
+        );
+      }
+    });
+
+    it("should handle empty subjects", () => {
+      const leaderboard = getDimensionLeaderboard("Openness", [], analysisData);
+      expect(leaderboard).toEqual([]);
+    });
+  });
 });
+

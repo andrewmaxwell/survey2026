@@ -8,9 +8,11 @@ import {
   getSimilarityPercentage,
   getGrade,
   getSimilarAndDifferent,
+  extractAnswers,
 } from "../utils";
 import { RadarChart } from "./RadarChart";
 import { QuestionBreakdown } from "./QuestionBreakdown";
+import { Insights } from "./Insights";
 
 interface SubjectInfo {
   subject: string;
@@ -267,15 +269,8 @@ export function Dashboard({
                         r.subject.toLowerCase() === subj.subject.toLowerCase(),
                     );
                     if (userRating && subj.friendCount > 0) {
-                      const userAnswers = [];
-                      for (let i = 1; i <= 15; i++) {
-                        userAnswers.push(
-                          Number(userRating[`q${i}` as keyof SurveyRating]) ||
-                            0,
-                        );
-                      }
                       const accuracy = getSimilarityPercentage(
-                        userAnswers,
+                        extractAnswers(userRating),
                         allAverages.get(subj.subject)!,
                       );
                       const grade = getGrade(accuracy);
@@ -316,6 +311,12 @@ export function Dashboard({
           })
         )}
       </div>
+
+      <Insights
+        analysisData={analysisData}
+        subjects={subjectsArray.map((s) => s.subject)}
+        currentUser={state.userName}
+      />
 
       <QuestionBreakdown analysisData={analysisData} />
     </motion.div>

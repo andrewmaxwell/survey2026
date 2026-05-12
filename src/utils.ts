@@ -10,7 +10,9 @@ export const dimensionsList = [
 ];
 
 export function getSubjectScores(subject: string, allData: SurveyRating[]) {
-  const ratings = allData.filter((r) => r.subject === subject);
+  const ratings = allData.filter(
+    (r) => r.subject.toLowerCase() === subject.toLowerCase(),
+  );
   if (ratings.length === 0) return [];
 
   const dimScores: Record<string, { total: number; count: number }> = {};
@@ -175,3 +177,153 @@ export function getQuestionStats(answers: number[]): {
 
   return { avg, median, stdDev, polarization, bins };
 }
+
+/** Helper: extract 15 answers from a SurveyRating row as a number array. */
+export function extractAnswers(row: SurveyRating): number[] {
+  const out: number[] = [];
+  for (let i = 1; i <= 15; i++) {
+    out.push(Number(row[`q${i}` as keyof SurveyRating]) || 0);
+  }
+  return out;
+}
+
+/**
+ * Self-Perception Gap ("Blind Spot" Score).
+ * Compares a person's self-rating to the average of how others rated them.
+ * Returns the top blind spots (largest absolute gaps) with question index and values.
+ */
+export function getBlindSpots(
+  subject: string,
+  allData: SurveyRating[],
+  maxResults = 3,
+): {
+  questionIndex: number;
+  selfValue: number;
+  friendAvg: number;
+  gap: number;
+}[] {
+  const subjectLower = subject.toLowerCase();
+
+  const selfRating = allData.find(
+    (r) =>
+      r.rater.toLowerCase() === subjectLower &&
+      r.subject.toLowerCase() === subjectLower,
+  );
+  if (!selfRating) return [];
+
+  const friendRatings = allData.filter(
+    (r) =>
+      r.subject.toLowerCase() === subjectLower &&
+      r.rater.toLowerCase() !== subjectLower,
+  );
+  if (friendRatings.length === 0) return [];
+
+  const selfAnswers = extractAnswers(selfRating);
+  const friendTotals = new Array(15).fill(0);
+  friendRatings.forEach((r) => {
+    const answers = extractAnswers(r);
+    answers.forEach((a, i) => (friendTotals[i] += a));
+  });
+  const friendAvgs = friendTotals.map((t) =>
+    Math.round(t / friendRatings.length),
+  );
+
+  const gaps = selfAnswers.map((selfVal, i) => ({
+    questionIndex: i,
+    selfValue: selfVal,
+    friendAvg: friendAvgs[i],
+    gap: Math.abs(selfVal - friendAvgs[i]),
+  }));
+
+  gaps.sort((a, b) => b.gap - a.gap);
+  return gaps.slice(0, maxResults);
+}
+
+/**
+ * "Who Knows You Best?" Leaderboard.
+ * For a given subject, ranks all raters by how close their individual
+ * rating was to the consensus average of ALL ratings for that subject.
+ */
+export function getWhoKnowsYouBest(
+  subject: string,
+  allData: SurveyRating[],
+): { rater: string; accuracy: number }[] {
+  const subjectLower = subject.toLowerCase();
+
+  const allRatings = allData.filter(
+    (r) => r.subject.toLowerCase() === subjectLower,
+  );
+  if (allRatings.length < 2) return [];
+
+  const consensusAvg = getSubjectAverageAnswers(subject, allData);
+
+  const raterScores = allRatings
+    .filter((r) => r.rater.toLowerCase() !== subjectLower)
+    .map((r) => ({
+      rater: r.rater,
+      accuracy: getSimilarityPercentage(extractAnswers(r), consensusAvg),
+    }));
+
+  raterScores.sort((a, b) => b.accuracy - a.accuracy);
+  return raterScores;
+}
+
+/**
+ * Controversy Index for a given subject.
+ * Measures how much raters DISAGREE about this person.
+ * Returns an overall controversy score (0 = total agreement, 100 = max disagreement)
+ * and per-question controversy scores.
+ */
+export function getControversyIndex(
+  subject: string,
+  allData: SurveyRating[],
+): { overall: number; perQuestion: number[] } | null {
+  const subjectLower = subject.toLowerCase();
+
+  const ratings = allData.filter(
+    (r) => r.subject.toLowerCase() === subjectLower,
+  );
+  if (ratings.length < 2) return null;
+
+  const perQuestion: number[] = [];
+  for (let i = 0; i < 15; i++) {
+    const qKey = `q${i + 1}` as keyof SurveyRating;
+    const values = ratings.map((r) => Number(r[qKey]) || 0);
+    const avg = values.reduce((a, b) => a + b, 0) / values.length;
+    const variance =
+      values.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) /
+      values.length;
+    perQuestion.push(Math.round(Math.sqrt(variance)));
+  }
+
+  // Overall is the average stdDev across all questions, scaled to 0-100.
+  // Max possible stdDev for a question is 50 (half of 0-100 range).
+  const avgStdDev =
+    perQuestion.reduce((a, b) => a + b, 0) / perQuestion.length;
+  const overall = Math.round((avgStdDev / 50) * 100);
+
+  return { overall, perQuestion };
+}
+
+/**
+ * Dimension Leaderboard.
+ * Returns all subjects ranked by score for a given OCEAN dimension.
+ * Uses consensus scores (all raters averaged).
+ */
+export function getDimensionLeaderboard(
+  dimension: string,
+  subjects: string[],
+  allData: SurveyRating[],
+): { subject: string; score: number }[] {
+  const results = subjects
+    .map((subject) => {
+      const scores = getSubjectScores(subject, allData);
+      const dimScore = scores.find((s) => s.dimension === dimension);
+      return { subject, score: dimScore?.score ?? 50 };
+    })
+    .filter((r) => r.score !== undefined);
+
+  results.sort((a, b) => b.score - a.score);
+  return results;
+}
+
