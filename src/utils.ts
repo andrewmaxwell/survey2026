@@ -321,7 +321,9 @@ export function getKnowsBest(
       person: r.subject,
       accuracy: getAccuracyScore(rater, r.subject, allData),
     }))
-    .filter((r): r is { person: string; accuracy: number } => r.accuracy !== null)
+    .filter(
+      (r): r is { person: string; accuracy: number } => r.accuracy !== null,
+    )
     .sort((a, b) => b.accuracy - a.accuracy)
     .slice(0, 5);
 }
@@ -339,7 +341,9 @@ export function getBestKnownBy(
       person: r.rater,
       accuracy: getAccuracyScore(r.rater, subject, allData),
     }))
-    .filter((r): r is { person: string; accuracy: number } => r.accuracy !== null)
+    .filter(
+      (r): r is { person: string; accuracy: number } => r.accuracy !== null,
+    )
     .sort((a, b) => b.accuracy - a.accuracy)
     .slice(0, 5);
 }
@@ -372,8 +376,7 @@ export function getControversyIndex(
 
   // Overall is the average stdDev across all questions, scaled to 0-100.
   // Max possible stdDev for a question is 50 (half of 0-100 range).
-  const avgStdDev =
-    perQuestion.reduce((a, b) => a + b, 0) / perQuestion.length;
+  const avgStdDev = perQuestion.reduce((a, b) => a + b, 0) / perQuestion.length;
   const overall = Math.round((avgStdDev / 50) * 100);
 
   return { overall, perQuestion };
@@ -453,47 +456,191 @@ interface TraitSignal {
 
 // Map from combo of top-2 signals → archetype. Keys are sorted alphabetically.
 const comboArchetypes: Record<string, Archetype> = {
-  "Curious+Disciplined":  { name: "The Visionary",     emoji: "🔮", description: "Creative yet disciplined — turns big ideas into reality" },
-  "Curious+Social":       { name: "The Explorer",      emoji: "🧭", description: "Adventurous and outgoing, always chasing the next experience" },
-  "Curious+Warm":         { name: "The Idealist",      emoji: "🌈", description: "A compassionate dreamer who sees the best in everyone" },
-  "Curious+Sensitive":    { name: "The Poet",          emoji: "🪶", description: "Deeply thoughtful with a rich inner world" },
-  "Curious+Steady":       { name: "The Sage",          emoji: "📚", description: "Intellectually curious and unflappable under pressure" },
-  "Curious+Direct":       { name: "The Maverick",      emoji: "🚀", description: "Bold and original, challenges conventions" },
-  "Curious+Reflective":   { name: "The Philosopher",   emoji: "🤔", description: "A deep thinker who finds meaning in ideas" },
-  "Disciplined+Social":   { name: "The Captain",       emoji: "⚓", description: "Organized and assertive, a natural leader" },
-  "Disciplined+Warm":     { name: "The Guardian",      emoji: "🛡️", description: "Dependable, caring, and always looking out for others" },
-  "Disciplined+Sensitive": { name: "The Perfectionist", emoji: "🎯", description: "Meticulous and driven, holds themselves to high standards" },
-  "Disciplined+Steady":   { name: "The Architect",     emoji: "📐", description: "Methodical, reliable, and cool under pressure" },
-  "Disciplined+Direct":   { name: "The Strategist",    emoji: "♟️", description: "Efficient and straightforward, gets things done" },
-  "Social+Warm":          { name: "The Connector",     emoji: "🌟", description: "A natural social glue who brings people together" },
-  "Social+Sensitive":     { name: "The Performer",     emoji: "🎭", description: "Expressive and passionate, brings big energy everywhere" },
-  "Social+Steady":        { name: "The Catalyst",      emoji: "⚡", description: "Radiates confident energy and sparks action" },
-  "Social+Direct":        { name: "The Firebrand",     emoji: "🔥", description: "Outspoken and magnetic, never afraid to take charge" },
-  "Warm+Sensitive":       { name: "The Empath",        emoji: "💜", description: "Deeply feeling and compassionate, absorbs the emotions around them" },
-  "Warm+Steady":          { name: "The Peacemaker",    emoji: "🕊️", description: "Harmony-seeking and kind, everyone's trusted friend" },
-  "Warm+Direct":          { name: "The Coach",         emoji: "🏅", description: "Caring but honest — gives you the truth because they care" },
-  "Sensitive+Reflective": { name: "The Artist",        emoji: "🎨", description: "Emotionally deep and introspective, sees the world through a unique lens" },
-  "Direct+Steady":        { name: "The Rock",          emoji: "🪨", description: "Unshakable and straightforward, says it like it is" },
-  "Grounded+Disciplined": { name: "The Anchor",        emoji: "⚓", description: "Practical and reliable, the person everyone can count on" },
-  "Grounded+Warm":        { name: "The Nurturer",      emoji: "🌻", description: "Down-to-earth and caring, brings comfort to those around them" },
-  "Reflective+Steady":    { name: "The Observer",      emoji: "🔭", description: "Quiet, calm, and perceptive — takes it all in" },
-  "Reflective+Warm":      { name: "The Counselor",     emoji: "🫶", description: "A thoughtful listener who makes people feel understood" },
+  "Curious+Disciplined": {
+    name: "The Visionary",
+    emoji: "🔮",
+    description: "Creative yet disciplined — turns big ideas into reality",
+  },
+  "Curious+Social": {
+    name: "The Explorer",
+    emoji: "🧭",
+    description: "Adventurous and outgoing, always chasing the next experience",
+  },
+  "Curious+Warm": {
+    name: "The Idealist",
+    emoji: "🌈",
+    description: "A compassionate dreamer who sees the best in everyone",
+  },
+  "Curious+Sensitive": {
+    name: "The Poet",
+    emoji: "🪶",
+    description: "Deeply thoughtful with a rich inner world",
+  },
+  "Curious+Steady": {
+    name: "The Sage",
+    emoji: "📚",
+    description: "Intellectually curious and unflappable under pressure",
+  },
+  "Curious+Direct": {
+    name: "The Maverick",
+    emoji: "🚀",
+    description: "Bold and original, challenges conventions",
+  },
+  "Curious+Reflective": {
+    name: "The Philosopher",
+    emoji: "🤔",
+    description: "A deep thinker who finds meaning in ideas",
+  },
+  "Disciplined+Social": {
+    name: "The Captain",
+    emoji: "⚓",
+    description: "Organized and assertive, a natural leader",
+  },
+  "Disciplined+Warm": {
+    name: "The Guardian",
+    emoji: "🛡️",
+    description: "Dependable, caring, and always looking out for others",
+  },
+  "Disciplined+Sensitive": {
+    name: "The Perfectionist",
+    emoji: "🎯",
+    description: "Meticulous and driven, holds themselves to high standards",
+  },
+  "Disciplined+Steady": {
+    name: "The Architect",
+    emoji: "📐",
+    description: "Methodical, reliable, and cool under pressure",
+  },
+  "Disciplined+Direct": {
+    name: "The Strategist",
+    emoji: "♟️",
+    description: "Efficient and straightforward, gets things done",
+  },
+  "Social+Warm": {
+    name: "The Connector",
+    emoji: "🌟",
+    description: "A natural social glue who brings people together",
+  },
+  "Social+Sensitive": {
+    name: "The Performer",
+    emoji: "🎭",
+    description: "Expressive and passionate, brings big energy everywhere",
+  },
+  "Social+Steady": {
+    name: "The Catalyst",
+    emoji: "⚡",
+    description: "Radiates confident energy and sparks action",
+  },
+  "Social+Direct": {
+    name: "The Firebrand",
+    emoji: "🔥",
+    description: "Outspoken and magnetic, never afraid to take charge",
+  },
+  "Warm+Sensitive": {
+    name: "The Empath",
+    emoji: "💜",
+    description:
+      "Deeply feeling and compassionate, absorbs the emotions around them",
+  },
+  "Warm+Steady": {
+    name: "The Peacemaker",
+    emoji: "🕊️",
+    description: "Harmony-seeking and kind, everyone's trusted friend",
+  },
+  "Warm+Direct": {
+    name: "The Coach",
+    emoji: "🏅",
+    description: "Caring but honest — gives you the truth because they care",
+  },
+  "Sensitive+Reflective": {
+    name: "The Artist",
+    emoji: "🎨",
+    description:
+      "Emotionally deep and introspective, sees the world through a unique lens",
+  },
+  "Direct+Steady": {
+    name: "The Rock",
+    emoji: "🪨",
+    description: "Unshakable and straightforward, says it like it is",
+  },
+  "Grounded+Disciplined": {
+    name: "The Anchor",
+    emoji: "⚓",
+    description: "Practical and reliable, the person everyone can count on",
+  },
+  "Grounded+Warm": {
+    name: "The Nurturer",
+    emoji: "🌻",
+    description:
+      "Down-to-earth and caring, brings comfort to those around them",
+  },
+  "Reflective+Steady": {
+    name: "The Observer",
+    emoji: "🔭",
+    description: "Quiet, calm, and perceptive — takes it all in",
+  },
+  "Reflective+Warm": {
+    name: "The Counselor",
+    emoji: "🫶",
+    description: "A thoughtful listener who makes people feel understood",
+  },
 };
 
 // Single-signal fallbacks
 const singleArchetypes: Record<string, Archetype> = {
-  Curious:     { name: "The Innovator",    emoji: "💡", description: "Endlessly curious, always thinking outside the box" },
-  Disciplined: { name: "The Architect",    emoji: "📐", description: "Methodical and reliable, builds things that last" },
-  Social:      { name: "The Catalyst",     emoji: "⚡", description: "Pure social energy, lights up every room" },
-  Warm:        { name: "The Peacemaker",   emoji: "🕊️", description: "Harmony-seeking and kind, everyone's trusted friend" },
-  Sensitive:   { name: "The Sentinel",     emoji: "🔍", description: "Highly attuned and perceptive, feels things deeply" },
-  Steady:      { name: "The Rock",         emoji: "🪨", description: "Calm, composed, and unshakable" },
-  Direct:      { name: "The Maverick",     emoji: "🚀", description: "Speaks their mind and does things their own way" },
-  Reflective:  { name: "The Philosopher",  emoji: "🤔", description: "A quiet thinker who finds depth in everything" },
-  Grounded:    { name: "The Anchor",       emoji: "⚓", description: "Practical and steady, prefers the tried-and-true" },
+  Curious: {
+    name: "The Innovator",
+    emoji: "💡",
+    description: "Endlessly curious, always thinking outside the box",
+  },
+  Disciplined: {
+    name: "The Architect",
+    emoji: "📐",
+    description: "Methodical and reliable, builds things that last",
+  },
+  Social: {
+    name: "The Catalyst",
+    emoji: "⚡",
+    description: "Pure social energy, lights up every room",
+  },
+  Warm: {
+    name: "The Peacemaker",
+    emoji: "🕊️",
+    description: "Harmony-seeking and kind, everyone's trusted friend",
+  },
+  Sensitive: {
+    name: "The Sentinel",
+    emoji: "🔍",
+    description: "Highly attuned and perceptive, feels things deeply",
+  },
+  Steady: {
+    name: "The Rock",
+    emoji: "🪨",
+    description: "Calm, composed, and unshakable",
+  },
+  Direct: {
+    name: "The Maverick",
+    emoji: "🚀",
+    description: "Speaks their mind and does things their own way",
+  },
+  Reflective: {
+    name: "The Philosopher",
+    emoji: "🤔",
+    description: "A quiet thinker who finds depth in everything",
+  },
+  Grounded: {
+    name: "The Anchor",
+    emoji: "⚓",
+    description: "Practical and steady, prefers the tried-and-true",
+  },
 };
 
-const balanced: Archetype = { name: "The Balanced", emoji: "⚖️", description: "Well-rounded with no single trait dominating — adaptable to any situation" };
+const balanced: Archetype = {
+  name: "The Balanced",
+  emoji: "⚖️",
+  description:
+    "Well-rounded with no single trait dominating — adaptable to any situation",
+};
 
 /**
  * Convert OCEAN dimension scores into human-readable trait signals.
@@ -513,21 +660,23 @@ function getTraitSignals(
     // Map dimension + direction to a friendly trait name
     let trait: string;
     if (deviation > 0) {
-      trait = {
-        Openness: "Curious",
-        Conscientiousness: "Disciplined",
-        Extraversion: "Social",
-        Agreeableness: "Warm",
-        Neuroticism: "Sensitive",
-      }[dimension] ?? dimension;
+      trait =
+        {
+          Openness: "Curious",
+          Conscientiousness: "Disciplined",
+          Extraversion: "Social",
+          Agreeableness: "Warm",
+          Neuroticism: "Sensitive",
+        }[dimension] ?? dimension;
     } else {
-      trait = {
-        Openness: "Grounded",
-        Conscientiousness: "Spontaneous",
-        Extraversion: "Reflective",
-        Agreeableness: "Direct",
-        Neuroticism: "Steady",
-      }[dimension] ?? dimension;
+      trait =
+        {
+          Openness: "Grounded",
+          Conscientiousness: "Spontaneous",
+          Extraversion: "Reflective",
+          Agreeableness: "Direct",
+          Neuroticism: "Steady",
+        }[dimension] ?? dimension;
     }
 
     signals.push({ trait, strength: absDeviation });
@@ -544,7 +693,12 @@ function getTraitSignals(
 export function getArchetype(
   scores: { dimension: string; score: number }[],
 ): Archetype {
-  if (scores.length === 0) return { name: "The Mystery", emoji: "❓", description: "Not enough data yet" };
+  if (scores.length === 0)
+    return {
+      name: "The Mystery",
+      emoji: "❓",
+      description: "Not enough data yet",
+    };
 
   const signals = getTraitSignals(scores);
 
@@ -558,9 +712,9 @@ export function getArchetype(
 
   // Top-2 combo (alphabetical key)
   const comboKey = [signals[0].trait, signals[1].trait].sort().join("+");
-  return comboArchetypes[comboKey]
-    ?? singleArchetypes[signals[0].trait]
-    ?? balanced;
+  return (
+    comboArchetypes[comboKey] ?? singleArchetypes[signals[0].trait] ?? balanced
+  );
 }
 
 // ─── Rater quality stats ─────────────────────────────────────────────
@@ -649,5 +803,7 @@ export function getAllRaterStats(allData: SurveyRating[]): RaterStats[] {
     if (s) stats.push(s);
   });
 
-  return stats.sort((a, b) => b.avgDeviationFromConsensus - a.avgDeviationFromConsensus);
+  return stats.sort(
+    (a, b) => b.avgDeviationFromConsensus - a.avgDeviationFromConsensus,
+  );
 }

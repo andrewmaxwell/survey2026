@@ -187,7 +187,9 @@ describe("utils", () => {
     });
 
     it("should return null if no other raters exist", () => {
-      const avg = getSubjectAverageAnswersExcluding("Bob", "Alice", [mockData[0]]); // only Alice's rating
+      const avg = getSubjectAverageAnswersExcluding("Bob", "Alice", [
+        mockData[0],
+      ]); // only Alice's rating
       expect(avg).toBeNull();
     });
   });
@@ -205,7 +207,26 @@ describe("utils", () => {
       // Alice rating Alice is 50s. If we add a friend who rates Alice 50s, self-awareness is 100.
       const data = [
         ...mockData,
-        { ...mockData[0], rater: "Bob", subject: "Alice", q1: 50, q2: 50, q3: 50, q4: 50, q5: 50, q6: 50, q7: 50, q8: 50, q9: 50, q10: 50, q11: 50, q12: 50, q13: 50, q14: 50, q15: 50 }
+        {
+          ...mockData[0],
+          rater: "Bob",
+          subject: "Alice",
+          q1: 50,
+          q2: 50,
+          q3: 50,
+          q4: 50,
+          q5: 50,
+          q6: 50,
+          q7: 50,
+          q8: 50,
+          q9: 50,
+          q10: 50,
+          q11: 50,
+          q12: 50,
+          q13: 50,
+          q14: 50,
+          q15: 50,
+        },
       ];
       expect(getSelfAwarenessScore("Alice", data)).toBe(100);
     });
@@ -301,41 +322,101 @@ describe("utils", () => {
     {
       rater: "Alice",
       subject: "Alice",
-      q1: 80, q2: 80, q3: 80, q4: 80, q5: 80,
-      q6: 80, q7: 80, q8: 80, q9: 80, q10: 80,
-      q11: 80, q12: 80, q13: 80, q14: 80, q15: 80,
+      q1: 80,
+      q2: 80,
+      q3: 80,
+      q4: 80,
+      q5: 80,
+      q6: 80,
+      q7: 80,
+      q8: 80,
+      q9: 80,
+      q10: 80,
+      q11: 80,
+      q12: 80,
+      q13: 80,
+      q14: 80,
+      q15: 80,
     },
     // Bob rates Alice — very accurate (close to self)
     {
       rater: "Bob",
       subject: "Alice",
-      q1: 75, q2: 85, q3: 78, q4: 82, q5: 77,
-      q6: 83, q7: 79, q8: 81, q9: 76, q10: 84,
-      q11: 78, q12: 82, q13: 77, q14: 83, q15: 79,
+      q1: 75,
+      q2: 85,
+      q3: 78,
+      q4: 82,
+      q5: 77,
+      q6: 83,
+      q7: 79,
+      q8: 81,
+      q9: 76,
+      q10: 84,
+      q11: 78,
+      q12: 82,
+      q13: 77,
+      q14: 83,
+      q15: 79,
     },
     // Charlie rates Alice — way off (big gaps)
     {
       rater: "Charlie",
       subject: "Alice",
-      q1: 20, q2: 30, q3: 25, q4: 35, q5: 40,
-      q6: 25, q7: 30, q8: 35, q9: 20, q10: 40,
-      q11: 25, q12: 30, q13: 35, q14: 20, q15: 40,
+      q1: 20,
+      q2: 30,
+      q3: 25,
+      q4: 35,
+      q5: 40,
+      q6: 25,
+      q7: 30,
+      q8: 35,
+      q9: 20,
+      q10: 40,
+      q11: 25,
+      q12: 30,
+      q13: 35,
+      q14: 20,
+      q15: 40,
     },
     // Bob self-rates
     {
       rater: "Bob",
       subject: "Bob",
-      q1: 50, q2: 50, q3: 50, q4: 50, q5: 50,
-      q6: 50, q7: 50, q8: 50, q9: 50, q10: 50,
-      q11: 50, q12: 50, q13: 50, q14: 50, q15: 50,
+      q1: 50,
+      q2: 50,
+      q3: 50,
+      q4: 50,
+      q5: 50,
+      q6: 50,
+      q7: 50,
+      q8: 50,
+      q9: 50,
+      q10: 50,
+      q11: 50,
+      q12: 50,
+      q13: 50,
+      q14: 50,
+      q15: 50,
     },
     // Charlie self-rates
     {
       rater: "Charlie",
       subject: "Charlie",
-      q1: 30, q2: 30, q3: 30, q4: 30, q5: 30,
-      q6: 30, q7: 30, q8: 30, q9: 30, q10: 30,
-      q11: 30, q12: 30, q13: 30, q14: 30, q15: 30,
+      q1: 30,
+      q2: 30,
+      q3: 30,
+      q4: 30,
+      q5: 30,
+      q6: 30,
+      q7: 30,
+      q8: 30,
+      q9: 30,
+      q10: 30,
+      q11: 30,
+      q12: 30,
+      q13: 30,
+      q14: 30,
+      q15: 30,
     },
   ];
 
@@ -373,11 +454,11 @@ describe("utils", () => {
     it("should rank subjects by rater accuracy", () => {
       const data = [
         { ...analysisData[0], rater: "Dave", subject: "Alice" }, // Dave rates Alice
-        { ...analysisData[0], rater: "Dave", subject: "Bob" },   // Dave rates Bob
+        { ...analysisData[0], rater: "Dave", subject: "Bob" }, // Dave rates Bob
         // friends rate Alice:
         { ...analysisData[1] }, // Bob rates Alice
         // friends rate Bob:
-        { ...analysisData[0], rater: "Alice", subject: "Bob" }
+        { ...analysisData[0], rater: "Alice", subject: "Bob" },
       ];
       const knowsBest = getKnowsBest("Dave", data);
       expect(knowsBest).toBeInstanceOf(Array);
@@ -429,11 +510,11 @@ describe("utils", () => {
   describe("getArchetype", () => {
     it("should return combo archetype for two notable signals", () => {
       const scores = [
-        { dimension: "Openness", score: 80 },       // +30 → Curious
-        { dimension: "Extraversion", score: 75 },    // +25 → Social
+        { dimension: "Openness", score: 80 }, // +30 → Curious
+        { dimension: "Extraversion", score: 75 }, // +25 → Social
         { dimension: "Conscientiousness", score: 50 },
         { dimension: "Agreeableness", score: 50 },
-        { dimension: "Neuroticism", score: 30 },     // -20 → Steady (but weaker)
+        { dimension: "Neuroticism", score: 30 }, // -20 → Steady (but weaker)
       ];
       const arch = getArchetype(scores);
       expect(arch.name).toBe("The Explorer"); // Curious + Social
@@ -441,8 +522,8 @@ describe("utils", () => {
 
     it("should use deviation direction — low neuroticism is 'Steady'", () => {
       const scores = [
-        { dimension: "Openness", score: 75 },       // +25 → Curious
-        { dimension: "Neuroticism", score: 20 },     // -30 → Steady
+        { dimension: "Openness", score: 75 }, // +25 → Curious
+        { dimension: "Neuroticism", score: 20 }, // -30 → Steady
         { dimension: "Conscientiousness", score: 50 },
         { dimension: "Extraversion", score: 50 },
         { dimension: "Agreeableness", score: 50 },

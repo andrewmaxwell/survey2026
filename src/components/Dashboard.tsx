@@ -1,6 +1,14 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, ChevronDown, ChevronUp, Loader2, LogOut, RefreshCcw, User } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  LogOut,
+  RefreshCcw,
+  User,
+} from "lucide-react";
 import type { SurveyRating } from "../api";
 import type { SurveyState } from "../types";
 import {
@@ -61,17 +69,24 @@ function SubjectCard({
   subjectsArray: SubjectInfo[];
   handleStartFriendSurvey: (friendName: string) => void;
 }) {
-  const isSelf = subj.subject.trim().toLowerCase() === state.userName.trim().toLowerCase();
+  const isSelf =
+    subj.subject.trim().toLowerCase() === state.userName.trim().toLowerCase();
   const [isExpanded, setIsExpanded] = useState(isSelf);
 
   const hasSubmitted = subj.hasCurrentRater || isSelf;
   const lowConfidence = subj.friendCount < 3;
-  const result = getSimilarAndDifferent(subj.subject, subjectsArray, allAverages);
+  const result = getSimilarAndDifferent(
+    subj.subject,
+    subjectsArray,
+    allAverages,
+  );
 
   const knowsBestList = getKnowsBest(subj.subject, analysisData);
   const bestKnownByList = getBestKnownBy(subj.subject, analysisData);
 
-  const accuracyScore = !isSelf ? getAccuracyScore(state.userName, subj.subject, analysisData) : null;
+  const accuracyScore = !isSelf
+    ? getAccuracyScore(state.userName, subj.subject, analysisData)
+    : null;
   const selfAwarenessScore = getSelfAwarenessScore(subj.subject, analysisData);
 
   const currentUserAverages = allAverages.get(state.userName);
@@ -95,18 +110,43 @@ function SubjectCard({
       }}
     >
       <div
-        style={{ display: "flex", gap: "16px", alignItems: "center", cursor: "pointer" }}
+        style={{
+          display: "flex",
+          gap: "16px",
+          alignItems: "center",
+          cursor: "pointer",
+        }}
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <RadarChart subject={subj.subject} allData={analysisData} />
 
         <div style={{ flex: 1 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "8px",
+            }}
+          >
             <div>
-              <div style={{ fontWeight: 600, fontSize: "1.2rem", marginBottom: "2px" }}>
+              <div
+                style={{
+                  fontWeight: 600,
+                  fontSize: "1.2rem",
+                  marginBottom: "2px",
+                }}
+              >
                 {subj.subject}
               </div>
-              <div style={{ fontSize: "0.75rem", color: "#818cf8", fontWeight: 600 }}>
+              <div
+                style={{
+                  fontSize: "0.75rem",
+                  color: "#818cf8",
+                  fontWeight: 600,
+                }}
+              >
                 {archetype.emoji} {archetype.name}
               </div>
             </div>
@@ -114,7 +154,11 @@ function SubjectCard({
               {!hasSubmitted && (
                 <button
                   className="btn"
-                  style={{ padding: "4px 12px", fontSize: "0.8rem", borderRadius: "12px" }}
+                  style={{
+                    padding: "4px 12px",
+                    fontSize: "0.8rem",
+                    borderRadius: "12px",
+                  }}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleStartFriendSurvey(subj.subject);
@@ -157,19 +201,36 @@ function SubjectCard({
             </div>
           </div>
 
-          <div style={{ fontSize: "0.85rem", color: "#94a3b8", marginTop: "4px" }}>
-            {subj.friendCount} {subj.friendCount === 1 ? "friend has" : "friends have"} rated them
+          <div
+            style={{ fontSize: "0.85rem", color: "#94a3b8", marginTop: "4px" }}
+          >
+            {subj.friendCount}{" "}
+            {subj.friendCount === 1 ? "friend has" : "friends have"} rated them
             <span style={{ margin: "0 6px", opacity: 0.5 }}>·</span>
-            Rated {subj.ratedCount} {subj.ratedCount === 1 ? "friend" : "friends"}
+            Rated {subj.ratedCount}{" "}
+            {subj.ratedCount === 1 ? "friend" : "friends"}
             {lowConfidence && (
-              <span style={{ marginLeft: "8px", fontSize: "0.7rem", color: "#64748b", fontStyle: "italic" }}>
+              <span
+                style={{
+                  marginLeft: "8px",
+                  fontSize: "0.7rem",
+                  color: "#64748b",
+                  fontStyle: "italic",
+                }}
+              >
                 — limited data
               </span>
             )}
           </div>
 
           {simToMe !== null && (
-            <div style={{ fontSize: "0.85rem", color: "#cbd5e1", marginTop: "2px" }}>
+            <div
+              style={{
+                fontSize: "0.85rem",
+                color: "#cbd5e1",
+                marginTop: "2px",
+              }}
+            >
               <strong style={{ color: "#f8fafc" }}>Similarity to you:</strong>{" "}
               <span style={{ color: "#94a3b8" }}>{simToMe}%</span>
             </div>
@@ -215,7 +276,13 @@ function SubjectCard({
                       </span>
                     ))}
                   </div>
-                  <div style={{ fontSize: "0.85rem", color: "#cbd5e1", marginTop: "4px" }}>
+                  <div
+                    style={{
+                      fontSize: "0.85rem",
+                      color: "#cbd5e1",
+                      marginTop: "4px",
+                    }}
+                  >
                     <strong style={{ color: "#f8fafc" }}>Least similar:</strong>{" "}
                     {result.leastSimilar.map((item, i) => (
                       <span key={item.subject}>
@@ -228,7 +295,13 @@ function SubjectCard({
               )}
 
               {knowsBestList.length > 0 && (
-                <div style={{ fontSize: "0.85rem", color: "#cbd5e1", marginBottom: "4px" }}>
+                <div
+                  style={{
+                    fontSize: "0.85rem",
+                    color: "#cbd5e1",
+                    marginBottom: "4px",
+                  }}
+                >
                   <strong style={{ color: "#f8fafc" }}>Knows best:</strong>{" "}
                   {knowsBestList.map((item, i) => (
                     <span key={item.person}>
@@ -240,7 +313,13 @@ function SubjectCard({
               )}
 
               {bestKnownByList.length > 0 && (
-                <div style={{ fontSize: "0.85rem", color: "#cbd5e1", marginBottom: "12px" }}>
+                <div
+                  style={{
+                    fontSize: "0.85rem",
+                    color: "#cbd5e1",
+                    marginBottom: "12px",
+                  }}
+                >
                   <strong style={{ color: "#f8fafc" }}>Best known by:</strong>{" "}
                   {bestKnownByList.map((item, i) => (
                     <span key={item.person}>
@@ -252,18 +331,64 @@ function SubjectCard({
               )}
 
               {accuracyScore !== null && (
-                <div style={{ fontSize: "0.85rem", color: "#94a3b8", marginTop: "8px" }}>
+                <div
+                  style={{
+                    fontSize: "0.85rem",
+                    color: "#94a3b8",
+                    marginTop: "8px",
+                  }}
+                >
                   Your accuracy score:{" "}
-                  <strong style={{ color: "#4ade80", opacity: lowConfidence ? 0.6 : 1 }}>{accuracyScore}%</strong>
-                  {lowConfidence && <span style={{ fontSize: "0.7rem", color: "#64748b", marginLeft: "6px" }}>*</span>}
+                  <strong
+                    style={{
+                      color: "#4ade80",
+                      opacity: lowConfidence ? 0.6 : 1,
+                    }}
+                  >
+                    {accuracyScore}%
+                  </strong>
+                  {lowConfidence && (
+                    <span
+                      style={{
+                        fontSize: "0.7rem",
+                        color: "#64748b",
+                        marginLeft: "6px",
+                      }}
+                    >
+                      *
+                    </span>
+                  )}
                 </div>
               )}
 
               {selfAwarenessScore !== null && (
-                <div style={{ fontSize: "0.85rem", color: "#94a3b8", marginTop: "4px" }}>
+                <div
+                  style={{
+                    fontSize: "0.85rem",
+                    color: "#94a3b8",
+                    marginTop: "4px",
+                  }}
+                >
                   {isSelf ? "Self-awareness score:" : "Their self-awareness:"}{" "}
-                  <strong style={{ color: "#a855f7", opacity: lowConfidence ? 0.6 : 1 }}>{selfAwarenessScore}%</strong>
-                  {lowConfidence && <span style={{ fontSize: "0.7rem", color: "#64748b", marginLeft: "6px" }}>*</span>}
+                  <strong
+                    style={{
+                      color: "#a855f7",
+                      opacity: lowConfidence ? 0.6 : 1,
+                    }}
+                  >
+                    {selfAwarenessScore}%
+                  </strong>
+                  {lowConfidence && (
+                    <span
+                      style={{
+                        fontSize: "0.7rem",
+                        color: "#64748b",
+                        marginLeft: "6px",
+                      }}
+                    >
+                      *
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -286,13 +411,18 @@ export function Dashboard({
   const allAverages = new Map<string, number[]>();
 
   subjectsArray.forEach((s) => {
-    allAverages.set(s.subject, getSubjectAverageAnswers(s.subject, analysisData));
+    allAverages.set(
+      s.subject,
+      getSubjectAverageAnswers(s.subject, analysisData),
+    );
   });
 
   const currentUserAverages = allAverages.get(state.userName);
   const sortedSubjects = [...subjectsArray].sort((a, b) => {
-    const aIsSelf = a.subject.trim().toLowerCase() === state.userName.trim().toLowerCase();
-    const bIsSelf = b.subject.trim().toLowerCase() === state.userName.trim().toLowerCase();
+    const aIsSelf =
+      a.subject.trim().toLowerCase() === state.userName.trim().toLowerCase();
+    const bIsSelf =
+      b.subject.trim().toLowerCase() === state.userName.trim().toLowerCase();
     if (aIsSelf) return -1;
     if (bIsSelf) return 1;
 
@@ -323,7 +453,10 @@ export function Dashboard({
           marginBottom: "16px",
         }}
       >
-        <h2 className="title" style={{ margin: 0, fontSize: "1.8rem", textAlign: "left" }}>
+        <h2
+          className="title"
+          style={{ margin: 0, fontSize: "1.8rem", textAlign: "left" }}
+        >
           Analysis
         </h2>
         <button
@@ -355,7 +488,10 @@ export function Dashboard({
             <Loader2 className="spin" size={32} />
           </div>
         ) : sortedSubjects.length === 0 ? (
-          <p className="hint" style={{ textAlign: "center", marginTop: "16px" }}>
+          <p
+            className="hint"
+            style={{ textAlign: "center", marginTop: "16px" }}
+          >
             No one else has taken the survey yet! Check back later.
           </p>
         ) : (
@@ -386,7 +522,9 @@ export function Dashboard({
 
       <QuestionBreakdown analysisData={analysisData} />
 
-      <div style={{ display: "flex", justifyContent: "center", marginTop: "32px" }}>
+      <div
+        style={{ display: "flex", justifyContent: "center", marginTop: "32px" }}
+      >
         <button
           onClick={handleSwitchUser}
           className="btn btn-secondary"

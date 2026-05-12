@@ -11,7 +11,10 @@ const __dirname = path.dirname(__filename);
 
 // Find the most recent CSV
 const dir = path.resolve(__dirname, "..");
-const csvFiles = fs.readdirSync(dir).filter((f) => f.endsWith(".csv")).sort();
+const csvFiles = fs
+  .readdirSync(dir)
+  .filter((f) => f.endsWith(".csv"))
+  .sort();
 const csvPath = path.join(dir, csvFiles[csvFiles.length - 1]);
 console.log(`\n📊 Analyzing: ${path.basename(csvPath)}\n`);
 
@@ -56,7 +59,9 @@ rows.forEach((r) => {
   const k = r.rater.toLowerCase().trim();
   if (!uniqueRaters.has(k)) {
     const friendRatings = rows.filter(
-      (x) => x.rater.toLowerCase().trim() === k && x.subject.toLowerCase().trim() !== k,
+      (x) =>
+        x.rater.toLowerCase().trim() === k &&
+        x.subject.toLowerCase().trim() !== k,
     );
     uniqueRaters.set(k, { name: r.rater, ratings: friendRatings });
   }
@@ -64,7 +69,9 @@ rows.forEach((r) => {
 
 console.log("═══════════════════════════════════════════════════════════════");
 console.log("  RATER QUALITY REPORT");
-console.log("═══════════════════════════════════════════════════════════════\n");
+console.log(
+  "═══════════════════════════════════════════════════════════════\n",
+);
 
 const stats: {
   name: string;
@@ -93,7 +100,8 @@ uniqueRaters.forEach(({ name, ratings }) => {
 
   const avg = allAnswers.reduce((a, b) => a + b, 0) / allAnswers.length;
   const variance =
-    allAnswers.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) / allAnswers.length;
+    allAnswers.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) /
+    allAnswers.length;
   const stdDev = Math.sqrt(variance);
   const unique = new Set(allAnswers).size;
 
@@ -137,7 +145,9 @@ stats.sort((a, b) => a.stdDev - b.stdDev);
 stats.forEach((s) => {
   const flags = s.suspiciousRows.length > 0 ? " ⚠️" : " ✅";
   console.log(`${s.name}${flags}`);
-  console.log(`  Friends rated: ${s.count} | Avg answer: ${s.avg} | StdDev: ${s.stdDev} | Unique values: ${s.unique}`);
+  console.log(
+    `  Friends rated: ${s.count} | Avg answer: ${s.avg} | StdDev: ${s.stdDev} | Unique values: ${s.unique}`,
+  );
   s.suspiciousRows.forEach((r) => console.log(r));
   console.log();
 });
@@ -145,7 +155,9 @@ stats.forEach((s) => {
 // ── Anomaly summary ──
 console.log("═══════════════════════════════════════════════════════════════");
 console.log("  ANOMALY SUMMARY");
-console.log("═══════════════════════════════════════════════════════════════\n");
+console.log(
+  "═══════════════════════════════════════════════════════════════\n",
+);
 
 const flagged = stats.filter((s) => s.suspiciousRows.length > 0);
 if (flagged.length === 0) {
@@ -161,7 +173,9 @@ if (flagged.length === 0) {
 // ── Data distribution overview ──
 console.log("═══════════════════════════════════════════════════════════════");
 console.log("  RATING COVERAGE");
-console.log("═══════════════════════════════════════════════════════════════\n");
+console.log(
+  "═══════════════════════════════════════════════════════════════\n",
+);
 
 // Who has the most/fewest raters?
 const subjectCounts = new Map<string, number>();
@@ -186,6 +200,8 @@ const selfOnly = [...uniqueRaters.entries()]
   .map(([, v]) => v.name);
 
 if (selfOnly.length > 0) {
-  console.log(`\n⚠️  Self-rated only (no friend ratings given): ${selfOnly.join(", ")}`);
+  console.log(
+    `\n⚠️  Self-rated only (no friend ratings given): ${selfOnly.join(", ")}`,
+  );
 }
 console.log();

@@ -61,7 +61,10 @@ export function Heatmap({ analysisData, subjects }: HeatmapProps) {
 
   if (subjects.length < 3) return null;
 
-  const cellSize = Math.min(40, Math.max(24, Math.floor(360 / subjects.length)));
+  const cellSize = Math.min(
+    40,
+    Math.max(24, Math.floor(360 / subjects.length)),
+  );
   const range = maxVal - minVal || 1; // avoid division by zero
 
   return (
@@ -102,7 +105,8 @@ export function Heatmap({ analysisData, subjects }: HeatmapProps) {
           lineHeight: 1.5,
         }}
       >
-        Colors are stretched to the data range ({minVal}%–{maxVal}%). Warmer = more similar.
+        Colors are stretched to the data range ({minVal}%–{maxVal}%). Warmer =
+        more similar.
       </p>
 
       <div style={{ overflowX: "auto", paddingBottom: "8px" }}>
@@ -179,7 +183,9 @@ export function Heatmap({ analysisData, subjects }: HeatmapProps) {
                 return (
                   <div
                     key={`${rowName}-${colName}`}
-                    title={isSelf ? `${rowName}` : `${rowName} ↔ ${colName}: ${val}%`}
+                    title={
+                      isSelf ? `${rowName}` : `${rowName} ↔ ${colName}: ${val}%`
+                    }
                     className="heatmap-cell"
                     style={{
                       width: cellSize,

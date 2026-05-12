@@ -293,7 +293,7 @@ function App() {
         ratedCount: 0,
       });
     }
-    
+
     // Also ensure the rater exists in the map if they are also a subject, but we might only want to count ratings for subjects we actually track.
     // Actually, we can just calculate ratedCount in a separate pass or track it separately.
     if (!subjectsMap.has(raterKey)) {

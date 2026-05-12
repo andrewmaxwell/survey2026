@@ -219,85 +219,87 @@ export function Insights({
                 gap: "8px",
               }}
             >
-              {whoKnows.map((entry: { person: string; accuracy: number }, i: number) => {
-                const barWidth = Math.max(entry.accuracy, 5);
-                const isTop = i === 0;
-                return (
-                  <div
-                    key={entry.person}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                    }}
-                  >
+              {whoKnows.map(
+                (entry: { person: string; accuracy: number }, i: number) => {
+                  const barWidth = Math.max(entry.accuracy, 5);
+                  const isTop = i === 0;
+                  return (
                     <div
+                      key={entry.person}
                       style={{
-                        width: "24px",
-                        fontSize: "0.85rem",
-                        fontWeight: 700,
-                        color: isTop ? "#facc15" : "#64748b",
-                        textAlign: "center",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "12px",
                       }}
                     >
-                      {isTop ? "👑" : `#${i + 1}`}
-                    </div>
-                    <div
-                      style={{
-                        flex: 1,
-                        position: "relative",
-                        height: "32px",
-                        background: "rgba(0,0,0,0.2)",
-                        borderRadius: "8px",
-                        overflow: "hidden",
-                      }}
-                    >
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${barWidth}%` }}
-                        transition={{ duration: 0.6, delay: i * 0.1 }}
-                        style={{
-                          height: "100%",
-                          background: isTop
-                            ? "linear-gradient(90deg, #6366f1, #ec4899)"
-                            : "rgba(99, 102, 241, 0.4)",
-                          borderRadius: "8px",
-                        }}
-                      />
                       <div
                         style={{
-                          position: "absolute",
-                          top: 0,
-                          left: "12px",
-                          height: "100%",
-                          display: "flex",
-                          alignItems: "center",
+                          width: "24px",
                           fontSize: "0.85rem",
-                          fontWeight: isTop ? 700 : 500,
-                          color: "#f1f5f9",
+                          fontWeight: 700,
+                          color: isTop ? "#facc15" : "#64748b",
+                          textAlign: "center",
                         }}
                       >
-                        {entry.person}
+                        {isTop ? "👑" : `#${i + 1}`}
                       </div>
                       <div
                         style={{
-                          position: "absolute",
-                          top: 0,
-                          right: "12px",
-                          height: "100%",
-                          display: "flex",
-                          alignItems: "center",
-                          fontSize: "0.8rem",
-                          fontWeight: 600,
-                          color: isTop ? "#facc15" : "#94a3b8",
+                          flex: 1,
+                          position: "relative",
+                          height: "32px",
+                          background: "rgba(0,0,0,0.2)",
+                          borderRadius: "8px",
+                          overflow: "hidden",
                         }}
                       >
-                        {entry.accuracy}%
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${barWidth}%` }}
+                          transition={{ duration: 0.6, delay: i * 0.1 }}
+                          style={{
+                            height: "100%",
+                            background: isTop
+                              ? "linear-gradient(90deg, #6366f1, #ec4899)"
+                              : "rgba(99, 102, 241, 0.4)",
+                            borderRadius: "8px",
+                          }}
+                        />
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: 0,
+                            left: "12px",
+                            height: "100%",
+                            display: "flex",
+                            alignItems: "center",
+                            fontSize: "0.85rem",
+                            fontWeight: isTop ? 700 : 500,
+                            color: "#f1f5f9",
+                          }}
+                        >
+                          {entry.person}
+                        </div>
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: 0,
+                            right: "12px",
+                            height: "100%",
+                            display: "flex",
+                            alignItems: "center",
+                            fontSize: "0.8rem",
+                            fontWeight: 600,
+                            color: isTop ? "#facc15" : "#94a3b8",
+                          }}
+                        >
+                          {entry.accuracy}%
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                },
+              )}
             </div>
           </motion.div>
         )}
@@ -356,11 +358,7 @@ export function Insights({
                 const score = entry.overall ?? 0;
                 const barWidth = Math.max(score, 5);
                 const barColor =
-                  score > 50
-                    ? "#f87171"
-                    : score > 30
-                      ? "#eab308"
-                      : "#4ade80";
+                  score > 50 ? "#f87171" : score > 30 ? "#eab308" : "#4ade80";
                 return (
                   <div
                     key={entry.subject}
@@ -493,8 +491,7 @@ export function Insights({
                 >
                   {lb.ranking.slice(0, 5).map((entry, i) => {
                     const isCurrentUser =
-                      entry.subject.toLowerCase() ===
-                      currentUser.toLowerCase();
+                      entry.subject.toLowerCase() === currentUser.toLowerCase();
                     return (
                       <div
                         key={entry.subject}
@@ -516,7 +513,13 @@ export function Insights({
                             fontWeight: i === 0 ? 700 : 400,
                           }}
                         >
-                          {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}{" "}
+                          {i === 0
+                            ? "🥇"
+                            : i === 1
+                              ? "🥈"
+                              : i === 2
+                                ? "🥉"
+                                : `#${i + 1}`}{" "}
                           {entry.subject}
                           {isCurrentUser && (
                             <span
