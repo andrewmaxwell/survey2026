@@ -477,7 +477,7 @@ export function Dashboard({
       </div>
 
       <div className="friend-list">
-        {isLoading && analysisData.length === 0 ? (
+        {isLoading ? (
           <div
             style={{
               display: "flex",

@@ -60,7 +60,7 @@ function App() {
   );
 
   const [analysisData, setAnalysisData] = useState<SurveyRating[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(appState === "analysis");
 
   useEffect(() => {
     localStorage.setItem(
