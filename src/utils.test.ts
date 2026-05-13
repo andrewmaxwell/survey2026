@@ -4,7 +4,6 @@ import {
   getSubjectAverageAnswers,
   getSimilarityPercentage,
   getSimilarAndDifferent,
-  getQuestionStats,
   extractAnswers,
   getBlindSpots,
   getBestKnownBy,
@@ -275,36 +274,6 @@ describe("utils", () => {
         allAverages,
       );
       expect(result).toBeNull();
-    });
-  });
-
-  describe("getQuestionStats", () => {
-    it("should calculate correct stats for a spread of answers", () => {
-      const answers = [0, 50, 100];
-      const stats = getQuestionStats(answers);
-
-      expect(stats.avg).toBe(50);
-      expect(stats.median).toBe(50);
-      // Variance = ((0-50)^2 + (50-50)^2 + (100-50)^2) / 3 = (2500 + 0 + 2500) / 3 = 1666.66
-      // StdDev = sqrt(1666.66) = 41
-      expect(stats.stdDev).toBe(41);
-      expect(stats.polarization).toBe("High (Polarized)");
-
-      expect(stats.bins[0]).toBe(1); // 0
-      expect(stats.bins[5]).toBe(1); // 50
-      expect(stats.bins[9]).toBe(1); // 100
-    });
-
-    it("should calculate correct stats for consensus answers", () => {
-      const answers = [50, 52, 48];
-      const stats = getQuestionStats(answers);
-
-      expect(stats.avg).toBe(50);
-      expect(stats.median).toBe(50);
-      // Variance = ((50-50)^2 + (52-50)^2 + (48-50)^2) / 3 = (0 + 4 + 4) / 3 = 2.66
-      // StdDev = sqrt(2.66) = 2
-      expect(stats.stdDev).toBe(2);
-      expect(stats.polarization).toBe("Low (Consensus)");
     });
   });
 

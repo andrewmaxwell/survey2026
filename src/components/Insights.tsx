@@ -2,7 +2,6 @@ import { motion } from "framer-motion";
 import type { SurveyRating } from "../api";
 import { questions } from "../data";
 import {
-  getBestKnownBy,
   getBlindSpots,
   getControversyIndex,
   getDimensionLeaderboard,
@@ -228,7 +227,6 @@ export function Insights({
   if (analysisData.length === 0 || subjects.length === 0) return null;
 
   const blindSpots = getBlindSpots(currentUser, analysisData, 3);
-  const whoKnows = getBestKnownBy(currentUser, analysisData);
 
   const controversyRanking = subjects
     .map((s) => {
@@ -249,10 +247,9 @@ export function Insights({
   });
 
   const hasBlindSpots = blindSpots.length > 0;
-  const hasWhoKnows = whoKnows.length > 0;
   const hasControversy = controversyRanking.length > 0;
 
-  if (!hasBlindSpots && !hasWhoKnows && !hasControversy) return null;
+  if (!hasBlindSpots && !hasControversy) return null;
 
   /** Bar color for controversy scores — warm gradient for high, cool for low */
   const controversyBarColor = (score: number) =>
@@ -340,31 +337,6 @@ export function Insights({
                 </div>
               );
             })}
-          </InsightCard>
-        )}
-
-        {/* ── Who Knows You Best ── */}
-        {hasWhoKnows && (
-          <InsightCard
-            icon="🎯"
-            title="Who Knows You Best?"
-            subtitle="Friends ranked by how accurately they rated you"
-            delay={0.2}
-          >
-            {whoKnows.map((entry, i) => (
-              <RankedBar
-                key={entry.person}
-                name={entry.person}
-                value={entry.accuracy}
-                rank={i}
-                barColor={
-                  i === 0
-                    ? "linear-gradient(90deg, #6366f1, #ec4899)"
-                    : "rgba(99, 102, 241, 0.4)"
-                }
-                staggerDelay={i * 0.1}
-              />
-            ))}
           </InsightCard>
         )}
 

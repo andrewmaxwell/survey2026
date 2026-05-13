@@ -276,48 +276,6 @@ export function getSimilarAndDifferent(
   return { mostSimilar, leastSimilar };
 }
 
-// ─── Question stats ──────────────────────────────────────────────────
-
-/** Calculates statistics for a single question given all its answers. */
-export function getQuestionStats(answers: number[]): {
-  avg: number;
-  median: number;
-  stdDev: number;
-  polarization: string;
-  bins: number[];
-} {
-  if (answers.length === 0) {
-    return {
-      avg: 50,
-      median: 50,
-      stdDev: 0,
-      polarization: "Low (Consensus)",
-      bins: new Array(10).fill(0),
-    };
-  }
-
-  const avg = Math.round(answers.reduce((a, b) => a + b, 0) / answers.length);
-  const sorted = [...answers].sort((a, b) => a - b);
-  const median = sorted[Math.floor(sorted.length / 2)];
-
-  const variance =
-    answers.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) /
-    answers.length;
-  const stdDev = Math.round(Math.sqrt(variance));
-
-  let polarization = "Low (Consensus)";
-  if (stdDev > 25) polarization = "High (Polarized)";
-  else if (stdDev > 15) polarization = "Medium";
-
-  const bins = new Array(10).fill(0);
-  answers.forEach((a) => {
-    const binIdx = Math.min(9, Math.floor(a / 10));
-    bins[binIdx]++;
-  });
-
-  return { avg, median, stdDev, polarization, bins };
-}
-
 // ─── Blind spots ─────────────────────────────────────────────────────
 
 /**

@@ -24,7 +24,6 @@ import {
 } from "../utils";
 import { Heatmap } from "./Heatmap";
 import { Insights } from "./Insights";
-import { QuestionBreakdown } from "./QuestionBreakdown";
 import { RadarChart } from "./RadarChart";
 
 interface SubjectInfo {
@@ -519,8 +518,6 @@ export function Dashboard({
         analysisData={analysisData}
         subjects={subjectsArray.map((s) => s.subject)}
       />
-
-      <QuestionBreakdown analysisData={analysisData} />
 
       <div
         style={{ display: "flex", justifyContent: "center", marginTop: "32px" }}
