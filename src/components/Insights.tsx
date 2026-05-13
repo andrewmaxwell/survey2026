@@ -112,9 +112,7 @@ function RankedBar({
         >
           {name}
           {isCurrentUser && (
-            <span style={{ fontSize: "0.68rem", color: "#818cf8" }}>
-              (you)
-            </span>
+            <span style={{ fontSize: "0.68rem", color: "#818cf8" }}>(you)</span>
           )}
         </div>
         <div
@@ -200,8 +198,18 @@ function InsightCard({
 const leaderboardConfigs = [
   { dim: "Openness", label: "Openness", emoji: "🔭", invert: false },
   { dim: "Openness", label: "Conventionality", emoji: "🏡", invert: true },
-  { dim: "Conscientiousness", label: "Conscientiousness", emoji: "📋", invert: false },
-  { dim: "Conscientiousness", label: "Disinhibition", emoji: "🎢", invert: true },
+  {
+    dim: "Conscientiousness",
+    label: "Conscientiousness",
+    emoji: "📋",
+    invert: false,
+  },
+  {
+    dim: "Conscientiousness",
+    label: "Disinhibition",
+    emoji: "🎢",
+    invert: true,
+  },
   { dim: "Extraversion", label: "Extraversion", emoji: "🗣️", invert: false },
   { dim: "Extraversion", label: "Introversion", emoji: "🤫", invert: true },
   { dim: "Agreeableness", label: "Agreeableness", emoji: "🤝", invert: false },

@@ -7,6 +7,7 @@ import { Intro } from "./components/Intro";
 import { Survey } from "./components/Survey";
 import { questions } from "./data";
 import type { SurveyState } from "./types";
+import { standardizeAnswers } from "./utils";
 
 const LOCAL_STORAGE_KEY = "vibeCheckState";
 const INITIAL_ANSWERS = new Array(questions.length).fill(50);
@@ -73,7 +74,7 @@ function App() {
     setIsLoading(true);
     try {
       const data = await fetchData();
-      setAnalysisData(data);
+      setAnalysisData(standardizeAnswers(data));
     } catch (err) {
       console.error(err);
     } finally {
@@ -89,7 +90,7 @@ function App() {
         try {
           const data = await fetchData();
           if (active) {
-            setAnalysisData(data);
+            setAnalysisData(standardizeAnswers(data));
           }
         } catch (err) {
           console.error(err);
@@ -169,7 +170,7 @@ function App() {
           targetName: existingRecord.subject,
           mode: "self",
         }));
-        setAnalysisData(data);
+        setAnalysisData(standardizeAnswers(data));
         setAppState("analysis");
       } else {
         setState((prev) => ({
@@ -264,7 +265,7 @@ function App() {
       }
 
       // Optimistically add the new rating so it appears immediately
-      setAnalysisData((prev) => [...prev, surveyRating]);
+      setAnalysisData((prev) => standardizeAnswers([...prev, surveyRating]));
 
       setAppState("analysis");
     } catch (err) {

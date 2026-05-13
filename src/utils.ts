@@ -8,6 +8,55 @@ export const dimensionsList = [
   "Agreeableness",
   "Neuroticism",
 ];
+/**
+ * Per-question Z-score Standardization.
+ *
+ * For each of the 15 questions, computes the mean and standard deviation
+ * across ALL answers in the dataset, then rescales every answer so that
+ * the question's mean maps to 50 and each standard deviation spans 20 points.
+ *
+ * Why this helps:
+ *  - Different questions have different natural baselines (Q1 might average
+ *    70 while Q3 averages 40). Without standardization, high-baseline
+ *    questions dominate their OCEAN dimension score. This levels them.
+ *  - Preserves relative distances (someone who scored 10 points above
+ *    another person stays proportionally above them).
+ *  - Handles ties gracefully — identical raw answers stay identical.
+ *  - Keeps the natural shape of each question's distribution (bimodal
+ *    questions stay bimodal) while centering and stretching it.
+ *
+ * Output values are clamped to [0, 100].
+ */
+export function standardizeAnswers(data: SurveyRating[]): SurveyRating[] {
+  if (data.length < 2) return data;
+
+  const normalizedData = JSON.parse(JSON.stringify(data)) as SurveyRating[];
+  const questionKeys = Array.from(
+    { length: 15 },
+    (_, i) => `q${i + 1}` as keyof SurveyRating,
+  );
+
+  questionKeys.forEach((qKey) => {
+    const values = data.map((r) => Number(r[qKey]) || 0);
+
+    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+    const variance =
+      values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / values.length;
+    const stdDev = Math.sqrt(variance);
+
+    // If everyone gave the exact same answer, leave as-is (can't standardize)
+    if (stdDev === 0) return;
+
+    normalizedData.forEach((row, i) => {
+      const z = (values[i] - mean) / stdDev;
+      // Map: z = 0 → 50,  z = ±1 → 30/70,  z = ±2 → 10/90
+      const normalized = Math.round(z * 20 + 50);
+      (row[qKey] as number) = Math.max(0, Math.min(100, normalized));
+    });
+  });
+
+  return normalizedData;
+}
 
 // ─── String normalization ────────────────────────────────────────────
 

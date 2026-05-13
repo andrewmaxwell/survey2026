@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Check,
   ChevronDown,
@@ -9,23 +8,24 @@ import {
   RefreshCcw,
   User,
 } from "lucide-react";
+import { useState } from "react";
 import type { SurveyRating } from "../api";
 import type { SurveyState } from "../types";
 import {
-  getSubjectScores,
-  getSubjectAverageAnswers,
-  getSimilarityPercentage,
-  getSimilarAndDifferent,
   getAccuracyScore,
-  getSelfAwarenessScore,
-  getKnowsBest,
-  getBestKnownBy,
   getArchetype,
+  getBestKnownBy,
+  getKnowsBest,
+  getSelfAwarenessScore,
+  getSimilarAndDifferent,
+  getSimilarityPercentage,
+  getSubjectAverageAnswers,
+  getSubjectScores,
 } from "../utils";
-import { RadarChart } from "./RadarChart";
-import { QuestionBreakdown } from "./QuestionBreakdown";
-import { Insights } from "./Insights";
 import { Heatmap } from "./Heatmap";
+import { Insights } from "./Insights";
+import { QuestionBreakdown } from "./QuestionBreakdown";
+import { RadarChart } from "./RadarChart";
 
 interface SubjectInfo {
   subject: string;
