@@ -20,7 +20,6 @@ console.log(`\n📊 Analyzing: ${path.basename(csvPath)}\n`);
 
 const raw = fs.readFileSync(csvPath, "utf-8");
 const lines = raw.split("\n").filter((l) => l.trim().length > 0);
-const header = lines[0].split(",").map((h) => h.trim());
 
 interface Row {
   rater: string;

@@ -53,6 +53,69 @@ function NamePct({ name, pct }: { name: string; pct: number }) {
   );
 }
 
+/** Interpret mean as a tendency label + color */
+// function interpretMean(mean: number): { label: string; color: string } {
+//   if (mean >= 60) return { label: "Positive", color: "#4ade80" };
+//   if (mean >= 55) return { label: "Slightly positive", color: "#86efac" };
+//   if (mean > 45) return { label: "Neutral", color: "#94a3b8" };
+//   if (mean > 40) return { label: "Slightly negative", color: "#fbbf24" };
+//   return { label: "Negative", color: "#f87171" };
+// }
+
+// /** Interpret stdDev as a spread label + color */
+// function interpretSpread(stdDev: number): { label: string; color: string } {
+//   if (stdDev >= 22) return { label: "Wide spread", color: "#c084fc" };
+//   if (stdDev >= 15) return { label: "Moderate spread", color: "#94a3b8" };
+//   return { label: "Narrow spread", color: "#67e8f9" };
+// }
+
+// const pillStyle = (color: string): React.CSSProperties => ({
+//   display: "inline-block",
+//   padding: "2px 8px",
+//   borderRadius: "8px",
+//   fontSize: "0.7rem",
+//   fontWeight: 600,
+//   color,
+//   background: `${color}18`,
+//   border: `1px solid ${color}30`,
+// });
+
+// function RatingStatsRow({
+//   label,
+//   icon,
+//   stats,
+// }: {
+//   label: string;
+//   icon: string;
+//   stats: { mean: number; median: number; stdDev: number };
+// }) {
+//   const meanI = interpretMean(stats.mean);
+//   const spreadI = interpretSpread(stats.stdDev);
+
+//   return (
+//     <div style={{ marginBottom: "8px" }}>
+//       <div
+//         style={{
+//           display: "flex",
+//           alignItems: "center",
+//           gap: "8px",
+//           flexWrap: "wrap",
+//           marginBottom: "4px",
+//         }}
+//       >
+//         <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#cbd5e1", minWidth: "90px" }}>
+//           {icon} {label}
+//         </span>
+//         <span style={pillStyle(meanI.color)}>{meanI.label}</span>
+//         <span style={pillStyle(spreadI.color)}>{spreadI.label}</span>
+//       </div>
+//       <div style={{ fontSize: "0.7rem", color: "#64748b", marginLeft: "28px" }}>
+//         avg {stats.mean} · med {stats.median} · σ {stats.stdDev}
+//       </div>
+//     </div>
+//   );
+// }
+
 function SubjectCard({
   subj,
   state,
@@ -98,6 +161,9 @@ function SubjectCard({
   // Archetype
   const scores = getSubjectScores(subj.subject, analysisData);
   const archetype = getArchetype(scores);
+
+  // const givenStats = getRatingStats(ratingsBy(subj.subject, analysisData));
+  // const receivedStats = getRatingStats(friendRatingsOf(subj.subject, analysisData));
 
   return (
     <div
@@ -390,6 +456,17 @@ function SubjectCard({
                   )}
                 </div>
               )}
+
+              {/* Rating Stats */}
+              {/* {(givenStats || receivedStats) && (
+                <div style={{ marginTop: "16px", paddingTop: "12px", borderTop: "1px dashed rgba(255,255,255,0.1)" }}>
+                  <div style={{ fontSize: "0.7rem", color: "#ec4899", fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px", marginBottom: "10px" }}>
+                    📊 Rating Tendencies
+                  </div>
+                  {givenStats && <RatingStatsRow label="Given" icon="📤" stats={givenStats} />}
+                  {receivedStats && <RatingStatsRow label="Received" icon="📥" stats={receivedStats} />}
+                </div>
+              )} */}
             </div>
           </motion.div>
         )}

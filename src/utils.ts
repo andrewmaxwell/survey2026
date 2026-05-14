@@ -72,7 +72,7 @@ function ratingsOf(subject: string, data: SurveyRating[]): SurveyRating[] {
 }
 
 /** All ratings where `subject` is rated by someone OTHER than themselves. */
-function friendRatingsOf(
+export function friendRatingsOf(
   subject: string,
   data: SurveyRating[],
 ): SurveyRating[] {
@@ -90,7 +90,7 @@ function selfRatingOf(
 }
 
 /** All ratings made BY `rater` about OTHER people (not themselves). */
-function ratingsBy(rater: string, data: SurveyRating[]): SurveyRating[] {
+export function ratingsBy(rater: string, data: SurveyRating[]): SurveyRating[] {
   const k = key(rater);
   return data.filter((r) => key(r.rater) === k && key(r.subject) !== k);
 }
@@ -241,6 +241,50 @@ export function getSelfAwarenessScore(
   allData: SurveyRating[],
 ): number | null {
   return getAccuracyScore(subject, subject, allData);
+}
+
+// ─── Rating Stats (Given/Received) ───────────────────────────────────
+
+export interface RatingStats {
+  mean: number;
+  median: number;
+  stdDev: number;
+}
+
+export function getRatingStats(ratings: SurveyRating[]): RatingStats | null {
+  if (ratings.length === 0) return null;
+
+  const values: number[] = [];
+  ratings.forEach((r) => {
+    questions.forEach((q, idx) => {
+      const qKey = `q${idx + 1}` as keyof SurveyRating;
+      let val = Number(r[qKey]) || 0;
+      // Flip Agreeableness and Neuroticism so 100 represents High Trait
+      if (q.dimension === "Agreeableness" || q.dimension === "Neuroticism") {
+        val = 100 - val;
+      }
+      values.push(val);
+    });
+  });
+
+  if (values.length === 0) return null;
+
+  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const median =
+    sorted.length % 2 !== 0
+      ? sorted[mid]
+      : (sorted[mid - 1] + sorted[mid]) / 2;
+  const variance =
+    values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length;
+  const stdDev = Math.sqrt(variance);
+
+  return {
+    mean: Math.round(mean),
+    median: Math.round(median),
+    stdDev: Math.round(stdDev),
+  };
 }
 
 // ─── Similar / different ─────────────────────────────────────────────
@@ -427,6 +471,20 @@ export function getSimilarityMatrix(
       const bAvg = allAverages.get(b);
       if (!aAvg || !bAvg) return 0;
       return getSimilarityPercentage(aAvg, bAvg);
+    });
+  });
+  return { subjects, matrix };
+}
+
+/** Compute NxN knowledge matrix for all subjects (how well rater knows subject). */
+export function getKnowledgeMatrix(
+  subjects: string[],
+  allData: SurveyRating[],
+): { subjects: string[]; matrix: (number | null)[][] } {
+  const matrix = subjects.map((rater) => {
+    return subjects.map((subject) => {
+      if (rater === subject) return null;
+      return getAccuracyScore(rater, subject, allData);
     });
   });
   return { subjects, matrix };

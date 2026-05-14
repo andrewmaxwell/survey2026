@@ -1,7 +1,11 @@
-import { useMemo } from "react";
 import { motion } from "framer-motion";
+import { useMemo } from "react";
 import type { SurveyRating } from "../api";
-import { getSubjectAverageAnswers, getSimilarityMatrix } from "../utils";
+import {
+  getKnowledgeMatrix,
+  getSimilarityMatrix,
+  getSubjectAverageAnswers,
+} from "../utils";
 
 interface HeatmapProps {
   analysisData: SurveyRating[];
@@ -22,50 +26,82 @@ function lerpColor(t: number): string {
   }
 }
 
-export function Heatmap({ analysisData, subjects }: HeatmapProps) {
-  const { sortedSubjects, matrix, minVal, maxVal } = useMemo(() => {
-    const allAverages = new Map<string, number[]>();
-    subjects.forEach((s) => {
-      allAverages.set(s, getSubjectAverageAnswers(s, analysisData));
+// ── Shared helpers ────────────────────────────────────────────────────
+
+function computeMinMax(matrix: (number | null)[][]) {
+  let minVal = 100;
+  let maxVal = 0;
+  matrix.forEach((row, ri) => {
+    row.forEach((val, ci) => {
+      if (ri !== ci && val !== null) {
+        minVal = Math.min(minVal, val);
+        maxVal = Math.max(maxVal, val);
+      }
     });
+  });
+  return { minVal, maxVal };
+}
 
-    const result = getSimilarityMatrix(subjects, allAverages);
-
-    // Find actual min/max of OFF-DIAGONAL values to stretch the color range
-    let minVal = 100;
-    let maxVal = 0;
-    result.matrix.forEach((row, ri) => {
-      row.forEach((val, ci) => {
-        if (ri !== ci) {
-          minVal = Math.min(minVal, val);
-          maxVal = Math.max(maxVal, val);
-        }
-      });
+function sortByAverage(
+  subjects: string[],
+  matrix: (number | null)[][],
+): { sortedSubjects: string[]; sortedMatrix: (number | null)[][] } {
+  const avgs = subjects.map((_, i) => {
+    let sum = 0;
+    let count = 0;
+    matrix[i].forEach((val, j) => {
+      if (i !== j && val !== null) {
+        sum += val;
+        count++;
+      }
     });
+    return { index: i, avg: count > 0 ? sum / count : 0 };
+  });
+  avgs.sort((a, b) => b.avg - a.avg);
 
-    // Sort by average similarity (most connected first)
-    const avgSims = result.subjects.map((_, i) => {
-      const row = result.matrix[i];
-      const sum = row.reduce((a, b) => a + b, 0) - 100;
-      return { index: i, avg: sum / (row.length - 1) };
-    });
-    avgSims.sort((a, b) => b.avg - a.avg);
+  const sortedSubjects = avgs.map((s) => subjects[s.index]);
+  const sortedMatrix = avgs.map((s) =>
+    avgs.map((t) => matrix[s.index][t.index]),
+  );
+  return { sortedSubjects, sortedMatrix };
+}
 
-    const sortedSubjects = avgSims.map((s) => result.subjects[s.index]);
-    const sortedMatrix = avgSims.map((s) =>
-      avgSims.map((t) => result.matrix[s.index][t.index]),
-    );
+// ── Shared Grid Component ─────────────────────────────────────────────
 
-    return { sortedSubjects, matrix: sortedMatrix, minVal, maxVal };
-  }, [analysisData, subjects]);
+interface GridData {
+  sortedSubjects: string[];
+  matrix: (number | null)[][];
+  minVal: number;
+  maxVal: number;
+}
 
-  if (subjects.length < 3) return null;
+interface HeatmapGridProps extends GridData {
+  icon: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  /** Label between names in tooltip ("↔" or "→") */
+  arrowLabel?: string;
+  selfLabel?: string;
+}
 
+function HeatmapGrid({
+  sortedSubjects,
+  matrix,
+  minVal,
+  maxVal,
+  icon,
+  title,
+  subtitle,
+  description,
+  arrowLabel = "↔",
+  selfLabel = "—",
+}: HeatmapGridProps) {
   const cellSize = Math.min(
     40,
-    Math.max(24, Math.floor(360 / subjects.length)),
+    Math.max(24, Math.floor(360 / sortedSubjects.length)),
   );
-  const range = maxVal - minVal || 1; // avoid division by zero
+  const range = maxVal - minVal || 1;
 
   return (
     <motion.div
@@ -85,7 +121,7 @@ export function Heatmap({ analysisData, subjects }: HeatmapProps) {
           marginBottom: "8px",
         }}
       >
-        🗺️ Relationship Heatmap
+        {icon} {title}
       </div>
       <div
         style={{
@@ -95,7 +131,7 @@ export function Heatmap({ analysisData, subjects }: HeatmapProps) {
           lineHeight: 1.4,
         }}
       >
-        How similar is everyone to each other?
+        {subtitle}
       </div>
       <p
         style={{
@@ -105,8 +141,7 @@ export function Heatmap({ analysisData, subjects }: HeatmapProps) {
           lineHeight: 1.5,
         }}
       >
-        Colors are stretched to the data range ({minVal}%–{maxVal}%). Warmer =
-        more similar.
+        {description}
       </p>
 
       <div style={{ overflowX: "auto", paddingBottom: "8px" }}>
@@ -121,7 +156,7 @@ export function Heatmap({ analysisData, subjects }: HeatmapProps) {
           {/* Empty top-left corner */}
           <div />
 
-          {/* Column headers — rotated 45° */}
+          {/* Column headers — rotated 55° */}
           {sortedSubjects.map((name) => (
             <div
               key={`col-${name}`}
@@ -177,37 +212,44 @@ export function Heatmap({ analysisData, subjects }: HeatmapProps) {
               {sortedSubjects.map((colName, ci) => {
                 const val = matrix[ri][ci];
                 const isSelf = ri === ci;
-                // Map val to 0-1 within the actual data range
-                const t = isSelf ? 1 : (val - minVal) / range;
+                const isEmpty = val === null;
+                const t = isSelf || isEmpty ? 0 : (val - minVal) / range;
 
                 return (
                   <div
                     key={`${rowName}-${colName}`}
                     title={
-                      isSelf ? `${rowName}` : `${rowName} ↔ ${colName}: ${val}%`
+                      isSelf
+                        ? rowName
+                        : isEmpty
+                          ? `${rowName} ${arrowLabel} ${colName}: no data`
+                          : `${rowName} ${arrowLabel} ${colName}: ${val}%`
                     }
                     className="heatmap-cell"
                     style={{
                       width: cellSize,
                       height: cellSize,
                       borderRadius: "4px",
-                      background: isSelf
-                        ? "rgba(255,255,255,0.06)"
-                        : lerpColor(t),
+                      background:
+                        isSelf || isEmpty
+                          ? "rgba(255,255,255,0.06)"
+                          : lerpColor(t),
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       fontSize: cellSize < 30 ? "0.5rem" : "0.6rem",
                       fontWeight: 600,
-                      color: isSelf
-                        ? "rgba(255,255,255,0.12)"
-                        : t > 0.6
-                          ? "rgba(0,0,0,0.5)"
-                          : "rgba(255,255,255,0.7)",
+                      color:
+                        isSelf || isEmpty
+                          ? "rgba(255,255,255,0.12)"
+                          : t > 0.6
+                            ? "rgba(0,0,0,0.5)"
+                            : "rgba(255,255,255,0.7)",
                       cursor: "default",
                       transition: "transform 0.15s ease, box-shadow 0.15s ease",
                     }}
                     onMouseEnter={(e) => {
+                      if (isSelf || isEmpty) return;
                       const el = e.currentTarget;
                       el.style.transform = "scale(1.25)";
                       el.style.zIndex = "10";
@@ -220,7 +262,7 @@ export function Heatmap({ analysisData, subjects }: HeatmapProps) {
                       el.style.boxShadow = "none";
                     }}
                   >
-                    {isSelf ? "—" : val}
+                    {isSelf ? selfLabel : isEmpty ? "" : val}
                   </div>
                 );
               })}
@@ -253,5 +295,67 @@ export function Heatmap({ analysisData, subjects }: HeatmapProps) {
         <span>{maxVal}%</span>
       </div>
     </motion.div>
+  );
+}
+
+// ── Main Component ────────────────────────────────────────────────────
+
+export function Heatmap({ analysisData, subjects }: HeatmapProps) {
+  const similarityData = useMemo((): GridData | null => {
+    if (subjects.length < 3) return null;
+
+    const allAverages = new Map<string, number[]>();
+    subjects.forEach((s) => {
+      allAverages.set(s, getSubjectAverageAnswers(s, analysisData));
+    });
+
+    const result = getSimilarityMatrix(subjects, allAverages);
+    const { minVal, maxVal } = computeMinMax(result.matrix);
+    const { sortedSubjects, sortedMatrix } = sortByAverage(
+      result.subjects,
+      result.matrix,
+    );
+
+    return { sortedSubjects, matrix: sortedMatrix, minVal, maxVal };
+  }, [analysisData, subjects]);
+
+  const knowledgeData = useMemo((): GridData | null => {
+    if (subjects.length < 3) return null;
+
+    const result = getKnowledgeMatrix(subjects, analysisData);
+    const { minVal, maxVal } = computeMinMax(result.matrix);
+    const { sortedSubjects, sortedMatrix } = sortByAverage(
+      result.subjects,
+      result.matrix,
+    );
+
+    return { sortedSubjects, matrix: sortedMatrix, minVal, maxVal };
+  }, [analysisData, subjects]);
+
+  if (!similarityData) return null;
+
+  return (
+    <>
+      <HeatmapGrid
+        {...similarityData}
+        icon="🗺️"
+        title="Similarity Heatmap"
+        subtitle="How similar is everyone to each other?"
+        description={`Colors are stretched to the data range (${similarityData.minVal}%–${similarityData.maxVal}%). Warmer = more similar.`}
+        arrowLabel="↔"
+        selfLabel="—"
+      />
+      {knowledgeData && (
+        <HeatmapGrid
+          {...knowledgeData}
+          icon="🧠"
+          title="Knowledge Heatmap"
+          subtitle="How well does each person know the others?"
+          description={`Each cell shows how accurately the row person rated the column person vs. consensus. Gray = no rating. Range: ${knowledgeData.minVal}%–${knowledgeData.maxVal}%.`}
+          arrowLabel="→"
+          selfLabel="—"
+        />
+      )}
+    </>
   );
 }
