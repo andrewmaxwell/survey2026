@@ -158,9 +158,23 @@ function SubjectCard({
       ? getSimilarityPercentage(currentUserAverages, myAvg)
       : null;
 
-  // Archetype
-  const scores = getSubjectScores(subj.subject, analysisData);
-  const archetype = getArchetype(scores);
+  // Archetypes: Self vs Friends
+  const selfRatings = analysisData.filter(
+    (r) => r.subject.trim().toLowerCase() === subj.subject.trim().toLowerCase() && r.rater.trim().toLowerCase() === subj.subject.trim().toLowerCase()
+  );
+  const friendRatings = analysisData.filter(
+    (r) => r.subject.trim().toLowerCase() === subj.subject.trim().toLowerCase() && r.rater.trim().toLowerCase() !== subj.subject.trim().toLowerCase()
+  );
+
+  const selfScores = selfRatings.length > 0 ? getSubjectScores(subj.subject, selfRatings) : null;
+  const friendScores = friendRatings.length > 0 ? getSubjectScores(subj.subject, friendRatings) : null;
+
+  const selfArchetype = selfScores ? getArchetype(selfScores) : null;
+  const friendArchetype = friendScores ? getArchetype(friendScores) : null;
+
+  // Fallback to overall archetype if we don't have both
+  const overallScores = getSubjectScores(subj.subject, analysisData);
+  const overallArchetype = getArchetype(overallScores);
 
   // const givenStats = getRatingStats(ratingsBy(subj.subject, analysisData));
   // const receivedStats = getRatingStats(friendRatingsOf(subj.subject, analysisData));
@@ -190,12 +204,11 @@ function SubjectCard({
             style={{
               display: "flex",
               justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
+              alignItems: "flex-start",
               gap: "8px",
             }}
           >
-            <div>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <div
                 style={{
                   fontWeight: 600,
@@ -205,17 +218,8 @@ function SubjectCard({
               >
                 {subj.subject}
               </div>
-              <div
-                style={{
-                  fontSize: "0.75rem",
-                  color: "#818cf8",
-                  fontWeight: 600,
-                }}
-              >
-                {archetype.emoji} {archetype.name}
-              </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0, marginTop: "2px" }}>
               {!hasSubmitted && (
                 <button
                   className="btn"
@@ -264,6 +268,29 @@ function SubjectCard({
                 <ChevronDown size={20} color="#94a3b8" />
               )}
             </div>
+          </div>
+
+          <div
+            style={{
+              fontSize: "0.75rem",
+              color: "#818cf8",
+              fontWeight: 600,
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
+          >
+            {selfArchetype && friendArchetype ? (
+              <>
+                <span style={{ whiteSpace: "nowrap" }}><span style={{ color: "#94a3b8" }}>Self:</span> {selfArchetype.emoji} {selfArchetype.name}</span>
+                <span style={{ margin: "0 6px", opacity: 0.5 }}>|</span>
+                <span style={{ whiteSpace: "nowrap" }}><span style={{ color: "#94a3b8" }}>Friends:</span> {friendArchetype.emoji} {friendArchetype.name}</span>
+              </>
+            ) : (
+              <span style={{ whiteSpace: "nowrap" }}>
+                {overallArchetype.emoji} {overallArchetype.name}
+              </span>
+            )}
           </div>
 
           <div
@@ -325,9 +352,19 @@ function SubjectCard({
                   color: "#94a3b8",
                   marginBottom: "12px",
                   fontStyle: "italic",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "4px"
                 }}
               >
-                {archetype.description}
+                {selfArchetype && friendArchetype ? (
+                  <>
+                    <div><strong style={{color: "#cbd5e1"}}>Self ({selfArchetype.name}):</strong> {selfArchetype.description}</div>
+                    <div><strong style={{color: "#cbd5e1"}}>Friends ({friendArchetype.name}):</strong> {friendArchetype.description}</div>
+                  </>
+                ) : (
+                  <div>{overallArchetype.description}</div>
+                )}
               </div>
 
               {result && (
@@ -434,7 +471,7 @@ function SubjectCard({
                     marginTop: "4px",
                   }}
                 >
-                  {isSelf ? "Self-awareness score:" : "Their self-awareness:"}{" "}
+                  {isSelf ? "Alignment with friends:" : "Alignment with friends:"}{" "}
                   <strong
                     style={{
                       color: "#a855f7",
@@ -487,9 +524,16 @@ export function Dashboard({
   const allAverages = new Map<string, number[]>();
 
   subjectsArray.forEach((s) => {
+    // For similarity, compare how the *group* perceives people
+    const friendRatings = analysisData.filter(
+      (r) => r.subject.trim().toLowerCase() === s.subject.trim().toLowerCase() && r.rater.trim().toLowerCase() !== s.subject.trim().toLowerCase()
+    );
+    // If friends have rated, use their average to represent the subject. Otherwise fallback to self.
+    const dataToUse = friendRatings.length > 0 ? friendRatings : analysisData.filter(r => r.subject.trim().toLowerCase() === s.subject.trim().toLowerCase());
+    
     allAverages.set(
       s.subject,
-      getSubjectAverageAnswers(s.subject, analysisData),
+      getSubjectAverageAnswers(s.subject, dataToUse),
     );
   });
 

@@ -273,9 +273,9 @@ export function Insights({
         {hasBlindSpots && (
           <InsightCard
             icon="🪞"
-            title="Self-Perception Gap"
-            subtitle="Your biggest blind spots"
-            description="Questions where how you see yourself differs the most from how your friends see you."
+            title="Differences in Perception"
+            subtitle="Where self-view diverges from the group"
+            description="Questions where your self-rating differs the most from how your friends rated you."
             delay={0.1}
           >
             {blindSpots.map((spot, i) => {

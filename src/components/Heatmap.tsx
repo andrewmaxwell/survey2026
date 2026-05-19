@@ -83,6 +83,7 @@ interface HeatmapGridProps extends GridData {
   /** Label between names in tooltip ("↔" or "→") */
   arrowLabel?: string;
   selfLabel?: string;
+  showSelf?: boolean;
 }
 
 function HeatmapGrid({
@@ -96,6 +97,7 @@ function HeatmapGrid({
   description,
   arrowLabel = "↔",
   selfLabel = "—",
+  showSelf = false,
 }: HeatmapGridProps) {
   const cellSize = Math.min(
     40,
@@ -213,14 +215,17 @@ function HeatmapGrid({
                 const val = matrix[ri][ci];
                 const isSelf = ri === ci;
                 const isEmpty = val === null;
-                const t = isSelf || isEmpty ? 0 : (val - minVal) / range;
+                const shouldHideCell = (!showSelf && isSelf) || isEmpty;
+                const t = shouldHideCell ? 0 : (val - minVal) / range;
 
                 return (
                   <div
                     key={`${rowName}-${colName}`}
                     title={
                       isSelf
-                        ? rowName
+                        ? isEmpty
+                          ? `${rowName}: no self-rating`
+                          : `${rowName} (Self): ${val}%`
                         : isEmpty
                           ? `${rowName} ${arrowLabel} ${colName}: no data`
                           : `${rowName} ${arrowLabel} ${colName}: ${val}%`
@@ -230,26 +235,24 @@ function HeatmapGrid({
                       width: cellSize,
                       height: cellSize,
                       borderRadius: "4px",
-                      background:
-                        isSelf || isEmpty
-                          ? "rgba(255,255,255,0.06)"
-                          : lerpColor(t),
+                      background: shouldHideCell
+                        ? "rgba(255,255,255,0.06)"
+                        : lerpColor(t),
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       fontSize: cellSize < 30 ? "0.5rem" : "0.6rem",
                       fontWeight: 600,
-                      color:
-                        isSelf || isEmpty
-                          ? "rgba(255,255,255,0.12)"
-                          : t > 0.6
-                            ? "rgba(0,0,0,0.5)"
-                            : "rgba(255,255,255,0.7)",
+                      color: shouldHideCell
+                        ? "rgba(255,255,255,0.12)"
+                        : t > 0.6
+                          ? "rgba(0,0,0,0.5)"
+                          : "rgba(255,255,255,0.7)",
                       cursor: "default",
                       transition: "transform 0.15s ease, box-shadow 0.15s ease",
                     }}
                     onMouseEnter={(e) => {
-                      if (isSelf || isEmpty) return;
+                      if (shouldHideCell) return;
                       const el = e.currentTarget;
                       el.style.transform = "scale(1.25)";
                       el.style.zIndex = "10";
@@ -262,7 +265,7 @@ function HeatmapGrid({
                       el.style.boxShadow = "none";
                     }}
                   >
-                    {isSelf ? selfLabel : isEmpty ? "" : val}
+                    {shouldHideCell ? (isSelf ? selfLabel : "") : val}
                   </div>
                 );
               })}
@@ -351,9 +354,10 @@ export function Heatmap({ analysisData, subjects }: HeatmapProps) {
           icon="🧠"
           title="Knowledge Heatmap"
           subtitle="How well does each person know the others?"
-          description={`Each cell shows how accurately the row person rated the column person vs. consensus. Gray = no rating. Range: ${knowledgeData.minVal}%–${knowledgeData.maxVal}%.`}
+          description={`Each cell shows how accurately the row person rated the column person vs. consensus. Diagonal cells show self-awareness scores. Gray = no rating. Range: ${knowledgeData.minVal}%–${knowledgeData.maxVal}%.`}
           arrowLabel="→"
           selfLabel="—"
+          showSelf={true}
         />
       )}
     </>

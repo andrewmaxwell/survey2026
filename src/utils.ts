@@ -273,9 +273,7 @@ export function getRatingStats(ratings: SurveyRating[]): RatingStats | null {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   const median =
-    sorted.length % 2 !== 0
-      ? sorted[mid]
-      : (sorted[mid - 1] + sorted[mid]) / 2;
+    sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
   const variance =
     values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length;
   const stdDev = Math.sqrt(variance);
@@ -482,10 +480,7 @@ export function getKnowledgeMatrix(
   allData: SurveyRating[],
 ): { subjects: string[]; matrix: (number | null)[][] } {
   const matrix = subjects.map((rater) => {
-    return subjects.map((subject) => {
-      if (rater === subject) return null;
-      return getAccuracyScore(rater, subject, allData);
-    });
+    return subjects.map((subject) => getAccuracyScore(rater, subject, allData));
   });
   return { subjects, matrix };
 }
