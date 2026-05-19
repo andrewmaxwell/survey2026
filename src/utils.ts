@@ -693,6 +693,11 @@ const singleArchetypes: Record<string, Archetype> = {
     emoji: "⚓",
     description: "Practical and steady, prefers the tried-and-true",
   },
+  Spontaneous: {
+    name: "The Free Spirit",
+    emoji: "🍃",
+    description: "Adaptable and improvisational, goes with the flow",
+  },
 };
 
 const balanced: Archetype = {
