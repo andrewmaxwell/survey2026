@@ -7,3 +7,5 @@ export interface SurveyState {
   answers: number[];
   currentQuestionIndex: number;
 }
+
+export type AppScreen = "intro" | "survey" | "analysis";

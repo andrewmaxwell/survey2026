@@ -370,6 +370,7 @@ export function Insights({
           icon="📈"
           title="Dimension Leaderboards"
           subtitle="Who scores highest in each personality trait?"
+          description="People with only a rating or two are pulled toward the group average, so a single enthusiastic rating can't top a board."
           delay={0.4}
         >
           <div

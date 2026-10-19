@@ -329,3 +329,181 @@
     transform: rotate(360deg);
   }
 }
+
+.error-message {
+  margin: 16px 0 0;
+  color: #f87171;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+/* ── Trait ranges ─────────────────────────────────────────────── */
+
+.trait-ranges {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trait-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.trait-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.trait-row {
+  display: grid;
+  grid-template-columns: 9.5em 1fr 4.5em;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8rem;
+}
+
+.trait-name {
+  color: #cbd5e1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trait-value {
+  color: #94a3b8;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.trait-track {
+  position: relative;
+  height: 14px;
+}
+
+.trait-track::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 1px;
+}
+
+.trait-band,
+.trait-band-key {
+  background: hsla(190, 80%, 55%, 0.22);
+  border-radius: 7px;
+}
+
+.trait-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+
+.trait-band-key {
+  display: inline-block;
+  width: 18px;
+  height: 10px;
+}
+
+.trait-dot,
+.trait-dot-key {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-color);
+}
+
+.trait-dot {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.trait-dot-key {
+  display: inline-block;
+}
+
+.trait-dot.self,
+.trait-dot-key.self {
+  background: hsl(280, 80%, 65%);
+}
+
+.trait-dot.friends,
+.trait-dot-key.friends {
+  background: hsl(190, 80%, 55%);
+}
+
+.trait-note {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #64748b;
+  font-style: italic;
+}
+
+@media (max-width: 480px) {
+  .trait-row {
+    grid-template-columns: 7.5em 1fr 4em;
+    gap: 6px;
+  }
+}
+
+/* ── Friend quotes ────────────────────────────────────────────── */
+
+.friend-quotes {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.section-label {
+  font-size: 0.7rem;
+  color: #ec4899;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.friend-quote {
+  margin: 0;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.2);
+  border-left: 3px solid hsl(190, 80%, 55%);
+  border-radius: 10px;
+}
+
+.quote-question {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-bottom: 4px;
+}
+
+.friend-quote blockquote {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #f8fafc;
+  line-height: 1.4;
+}
+
+.quote-meta {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: hsl(190, 80%, 65%);
+  font-weight: 600;
+}
+
+.quote-self {
+  margin-top: 2px;
+  font-size: 0.75rem;
+  color: hsl(280, 60%, 75%);
+}

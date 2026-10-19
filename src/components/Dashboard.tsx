@@ -13,30 +13,34 @@ import type { SurveyRating } from "../api";
 import type { SurveyState } from "../types";
 import {
   getAccuracyScore,
+  getAnswerHighlights,
   getArchetype,
   getBestKnownBy,
+  getConsensusScores,
   getKnowsBest,
   getSelfAwarenessScore,
   getSimilarAndDifferent,
   getSimilarityPercentage,
   getSubjectAverageAnswers,
   getSubjectScores,
+  getTraitRanges,
+  type SubjectSummary,
 } from "../utils";
+import { FriendQuotes } from "./FriendQuotes";
 import { Heatmap } from "./Heatmap";
 import { Insights } from "./Insights";
 import { RadarChart } from "./RadarChart";
+import { TraitRanges } from "./TraitRanges";
 
-interface SubjectInfo {
-  subject: string;
-  friendCount: number;
-  ratedCount: number;
-  hasCurrentRater: boolean;
-}
+type SubjectInfo = SubjectSummary;
 
 interface DashboardProps {
   state: SurveyState;
   isLoading: boolean;
   analysisData: SurveyRating[];
+  /** Unadjusted rows, for quoting what friends actually picked. */
+  rawData: SurveyRating[];
+  loadError?: string | null;
   subjectsArray: SubjectInfo[];
   handleSwitchUser: () => void;
   handleStartFriendSurvey: (friendName: string) => void;
@@ -121,6 +125,7 @@ function SubjectCard({
   state,
   allAverages,
   analysisData,
+  rawData,
   subjectsArray,
   handleStartFriendSurvey,
 }: {
@@ -128,6 +133,7 @@ function SubjectCard({
   state: SurveyState;
   allAverages: Map<string, number[]>;
   analysisData: SurveyRating[];
+  rawData: SurveyRating[];
   subjectsArray: SubjectInfo[];
   handleStartFriendSurvey: (friendName: string) => void;
 }) {
@@ -173,7 +179,9 @@ function SubjectCard({
   const friendArchetype = friendScores ? getArchetype(friendScores) : null;
 
   // Fallback to overall archetype if we don't have both
-  const overallScores = getSubjectScores(subj.subject, analysisData);
+  const overallScores = getConsensusScores(subj.subject, analysisData);
+  const traitRanges = getTraitRanges(subj.subject, analysisData);
+  const highlights = getAnswerHighlights(subj.subject, rawData);
   const overallArchetype = getArchetype(overallScores);
 
   // const givenStats = getRatingStats(ratingsBy(subj.subject, analysisData));
@@ -367,6 +375,9 @@ function SubjectCard({
                 )}
               </div>
 
+              <TraitRanges ranges={traitRanges} />
+              <FriendQuotes highlights={highlights} isSelf={isSelf} />
+
               {result && (
                 <div style={{ marginBottom: "12px" }}>
                   <div style={{ fontSize: "0.85rem", color: "#cbd5e1" }}>
@@ -516,6 +527,8 @@ export function Dashboard({
   state,
   isLoading,
   analysisData,
+  rawData,
+  loadError,
   subjectsArray,
   handleSwitchUser,
   handleStartFriendSurvey,
@@ -596,6 +609,12 @@ export function Dashboard({
         </button>
       </div>
 
+      {loadError && (
+        <p className="error-message" role="alert">
+          {loadError}
+        </p>
+      )}
+
       <div className="friend-list">
         {isLoading ? (
           <div
@@ -607,7 +626,7 @@ export function Dashboard({
           >
             <Loader2 className="spin" size={32} />
           </div>
-        ) : sortedSubjects.length === 0 ? (
+        ) : sortedSubjects.length === 0 && !loadError ? (
           <p
             className="hint"
             style={{ textAlign: "center", marginTop: "16px" }}
@@ -622,6 +641,7 @@ export function Dashboard({
               state={state}
               allAverages={allAverages}
               analysisData={analysisData}
+              rawData={rawData}
               subjectsArray={subjectsArray}
               handleStartFriendSurvey={handleStartFriendSurvey}
             />

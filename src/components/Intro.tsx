@@ -7,6 +7,7 @@ interface IntroProps {
   setUserName: (name: string) => void;
   handleStartSelfSurvey: (e: React.FormEvent) => void;
   isLoading: boolean;
+  loadError?: string | null;
 }
 
 export function Intro({
@@ -14,6 +15,7 @@ export function Intro({
   setUserName,
   handleStartSelfSurvey,
   isLoading,
+  loadError,
 }: IntroProps) {
   return (
     <motion.div
@@ -53,6 +55,12 @@ export function Intro({
           )}
         </button>
       </form>
+
+      {loadError && (
+        <p className="error-message" role="alert">
+          {loadError}
+        </p>
+      )}
     </motion.div>
   );
 }

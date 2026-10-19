@@ -1,67 +1,19 @@
 import type { SurveyRating } from "./api";
-import { questions } from "./data";
+import {
+  dimensionsList,
+  QUESTION_COUNT,
+  questionKeys,
+  questions,
+  type Dimension,
+  type Question,
+} from "./data";
 
-export const dimensionsList = [
-  "Openness",
-  "Conscientiousness",
-  "Extraversion",
-  "Agreeableness",
-  "Neuroticism",
-];
-/**
- * Per-question Z-score Standardization.
- *
- * For each of the 15 questions, computes the mean and standard deviation
- * across ALL answers in the dataset, then rescales every answer so that
- * the question's mean maps to 50 and each standard deviation spans 20 points.
- *
- * Why this helps:
- *  - Different questions have different natural baselines (Q1 might average
- *    70 while Q3 averages 40). Without standardization, high-baseline
- *    questions dominate their OCEAN dimension score. This levels them.
- *  - Preserves relative distances (someone who scored 10 points above
- *    another person stays proportionally above them).
- *  - Handles ties gracefully — identical raw answers stay identical.
- *  - Keeps the natural shape of each question's distribution (bimodal
- *    questions stay bimodal) while centering and stretching it.
- *
- * Output values are clamped to [0, 100].
- */
-export function standardizeAnswers(data: SurveyRating[]): SurveyRating[] {
-  if (data.length < 2) return data;
-
-  const normalizedData = JSON.parse(JSON.stringify(data)) as SurveyRating[];
-  const questionKeys = Array.from(
-    { length: 15 },
-    (_, i) => `q${i + 1}` as keyof SurveyRating,
-  );
-
-  questionKeys.forEach((qKey) => {
-    const values = data.map((r) => Number(r[qKey]) || 0);
-
-    const mean = values.reduce((a, b) => a + b, 0) / values.length;
-    const variance =
-      values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / values.length;
-    const stdDev = Math.sqrt(variance);
-
-    // If everyone gave the exact same answer, leave as-is (can't standardize)
-    if (stdDev === 0) return;
-
-    normalizedData.forEach((row, i) => {
-      const z = (values[i] - mean) / stdDev;
-      // Map: z = 0 → 50,  z = ±1 → 30/70,  z = ±2 → 10/90
-      const normalized = Math.round(z * 20 + 50);
-      (row[qKey] as number) = Math.max(0, Math.min(100, normalized));
-    });
-  });
-
-  return normalizedData;
-}
-
+export { dimensionsList };
 // ─── String normalization ────────────────────────────────────────────
 
 /** Normalize a name for case/whitespace-insensitive comparison. */
 const key = (s: string) => s.trim().toLowerCase();
+export { key as nameKey };
 
 // ─── Filtering helpers ───────────────────────────────────────────────
 
@@ -80,8 +32,8 @@ export function friendRatingsOf(
   return data.filter((r) => key(r.subject) === k && key(r.rater) !== k);
 }
 
-/** The self-rating row where rater === subject, or null. */
-function selfRatingOf(
+/** The self-rating row where rater === subject (case/whitespace-insensitive). */
+export function selfRatingOf(
   subject: string,
   data: SurveyRating[],
 ): SurveyRating | undefined {
@@ -106,20 +58,89 @@ function findRating(
   return data.find((r) => key(r.rater) === rk && key(r.subject) === sk);
 }
 
-// ─── Core data extraction ────────────────────────────────────────────
+// ─── Subject list ────────────────────────────────────────────────────
 
-/** Extract 15 answers from a SurveyRating row as a number array. */
-export function extractAnswers(row: SurveyRating): number[] {
-  const out: number[] = [];
-  for (let i = 1; i <= 15; i++) {
-    out.push(Number(row[`q${i}` as keyof SurveyRating]) || 0);
-  }
-  return out;
+export interface SubjectSummary {
+  /** Display name, as first seen in the data. */
+  subject: string;
+  /** People other than the subject who have rated them. */
+  friendCount: number;
+  /** People other than themselves this person has rated. */
+  ratedCount: number;
+  /** Whether `currentUser` has rated this subject. */
+  hasCurrentRater: boolean;
 }
 
-/** Average an array of 15-element answer arrays into one 15-element array. */
+/**
+ * Everyone who appears in the data, as a rater or a subject, sorted by name.
+ * Names match case- and whitespace-insensitively.
+ */
+export function getSubjectSummaries(
+  data: SurveyRating[],
+  currentUser: string,
+): SubjectSummary[] {
+  const people = new Map<
+    string,
+    { displayName: string; raters: Set<string>; ratedCount: number }
+  >();
+  const person = (name: string) => {
+    const k = key(name);
+    if (!people.has(k)) {
+      people.set(k, { displayName: name.trim(), raters: new Set(), ratedCount: 0 });
+    }
+    return people.get(k)!;
+  };
+
+  data.forEach((row) => {
+    if (!row.subject || !row.rater) return;
+    const subject = person(row.subject);
+    const rater = person(row.rater);
+    subject.raters.add(key(row.rater));
+    if (key(row.rater) !== key(row.subject)) rater.ratedCount += 1;
+  });
+
+  const me = key(currentUser);
+  return Array.from(people.entries())
+    .map(([k, p]) => ({
+      subject: p.displayName,
+      friendCount: p.raters.has(k) ? p.raters.size - 1 : p.raters.size,
+      ratedCount: p.ratedCount,
+      hasCurrentRater: p.raters.has(me),
+    }))
+    .sort((a, b) => a.subject.localeCompare(b.subject));
+}
+
+// ─── Core data extraction ────────────────────────────────────────────
+
+/** Extract every answer from a SurveyRating row as a number array. */
+export function extractAnswers(row: SurveyRating): number[] {
+  return questionKeys.map((key) => Number(row[key]) || 0);
+}
+
+/** Build a SurveyRating row from an answers array (one per question). */
+export function ratingFromAnswers(
+  rater: string,
+  subject: string,
+  answers: number[],
+): SurveyRating {
+  const rating = { rater, subject } as SurveyRating;
+  questionKeys.forEach((key, i) => {
+    rating[key] = answers[i];
+  });
+  return rating;
+}
+
+/**
+ * Convert a slider answer to a trait score, where 100 always means HIGH in
+ * the question's dimension (reverse-scored questions are flipped).
+ */
+export function traitValue(question: Question, answer: number): number {
+  return question.reversed ? 100 - answer : answer;
+}
+
+/** Average rows of per-question answers into one per-question array. */
 function averageAnswerRows(ratings: SurveyRating[]): number[] {
-  const totals = new Array(15).fill(0);
+  const totals = new Array(QUESTION_COUNT).fill(0);
   ratings.forEach((r) => {
     const answers = extractAnswers(r);
     answers.forEach((a, i) => (totals[i] += a));
@@ -129,55 +150,226 @@ function averageAnswerRows(ratings: SurveyRating[]): number[] {
 
 // ─── Subject scores (OCEAN dimension averages) ───────────────────────
 
+/** One rating row's score in each dimension (100 = high in the trait). */
+function rowDimensionScores(row: SurveyRating): Record<Dimension, number> {
+  const totals = {} as Record<Dimension, { total: number; count: number }>;
+  dimensionsList.forEach((d) => (totals[d] = { total: 0, count: 0 }));
+  questions.forEach((q, idx) => {
+    const val = row[questionKeys[idx]];
+    if (typeof val === "number") {
+      totals[q.dimension].total += traitValue(q, val);
+      totals[q.dimension].count += 1;
+    }
+  });
+  const out = {} as Record<Dimension, number>;
+  dimensionsList.forEach((d) => {
+    out[d] = totals[d].count > 0 ? totals[d].total / totals[d].count : 50;
+  });
+  return out;
+}
+
+/** Unrounded average dimension scores across rows (each row weighs the same). */
+function meanDimensionScores(rows: SurveyRating[]): Record<Dimension, number> {
+  const out = {} as Record<Dimension, number>;
+  dimensionsList.forEach((d) => (out[d] = 0));
+  rows.forEach((r) => {
+    const scores = rowDimensionScores(r);
+    dimensionsList.forEach((d) => (out[d] += scores[d] / rows.length));
+  });
+  return out;
+}
+
 export function getSubjectScores(subject: string, allData: SurveyRating[]) {
   const ratings = ratingsOf(subject, allData);
   if (ratings.length === 0) return [];
+  const means = meanDimensionScores(ratings);
+  return dimensionsList.map((d) => ({
+    dimension: d,
+    score: Math.round(means[d]),
+  }));
+}
 
-  const dimScores: Record<string, { total: number; count: number }> = {};
-  dimensionsList.forEach((d) => (dimScores[d] = { total: 0, count: 0 }));
+// ─── Consensus scores (#2) ───────────────────────────────────────────
 
-  ratings.forEach((r) => {
-    questions.forEach((q, idx) => {
-      const qKey = `q${idx + 1}` as keyof SurveyRating;
-      const val = r[qKey];
-      if (typeof val === "number") {
-        dimScores[q.dimension].total += val;
-        dimScores[q.dimension].count += 1;
-      }
+/**
+ * How many ratings' worth of weight the group average gets in consensus
+ * scores. With 1, a person rated once lands halfway between that rating and
+ * the group average; rated 4 times, 80% of the way to their own average.
+ */
+const CONSENSUS_PRIOR_WEIGHT = 1;
+
+/**
+ * Dimension scores from everyone who rated `subject` (self included),
+ * pulled toward the group average in proportion to how little data there
+ * is. Use this for rankings, so one enthusiastic rating can't top a
+ * leaderboard.
+ */
+export function getConsensusScores(subject: string, allData: SurveyRating[]) {
+  const ratings = ratingsOf(subject, allData);
+  if (ratings.length === 0) return [];
+  const own = meanDimensionScores(ratings);
+  const group = meanDimensionScores(allData);
+  const w = ratings.length / (ratings.length + CONSENSUS_PRIOR_WEIGHT);
+  return dimensionsList.map((d) => ({
+    dimension: d,
+    score: Math.round(group[d] + w * (own[d] - group[d])),
+  }));
+}
+
+// ─── Trait ranges (#3) ───────────────────────────────────────────────
+
+/** z for an 80% interval: the range we call "likely". */
+const LIKELY_RANGE_Z = 1.28;
+
+/** Spread assumed between raters when there isn't data to measure it. */
+const DEFAULT_RATER_SPREAD = 20;
+
+/**
+ * How much different friends' ratings of the same person typically disagree,
+ * per dimension, pooled over everyone with 2+ friend raters.
+ */
+function friendRatingSpread(allData: SurveyRating[]): Record<Dimension, number> {
+  const ss = {} as Record<Dimension, number>;
+  dimensionsList.forEach((d) => (ss[d] = 0));
+  let df = 0;
+
+  const subjects = new Set(allData.map((r) => key(r.subject)));
+  subjects.forEach((s) => {
+    const friends = friendRatingsOf(s, allData);
+    if (friends.length < 2) return;
+    const mean = meanDimensionScores(friends);
+    friends.forEach((r) => {
+      const scores = rowDimensionScores(r);
+      dimensionsList.forEach((d) => (ss[d] += (scores[d] - mean[d]) ** 2));
     });
+    df += friends.length - 1;
   });
 
-  return dimensionsList.map((d) => {
-    let score =
-      dimScores[d].count > 0
-        ? Math.round(dimScores[d].total / dimScores[d].count)
-        : 50;
-
-    // For Neuroticism and Agreeableness, moving the slider to 100 (the right-most answer)
-    // actually corresponds to LOW Neuroticism and LOW Agreeableness based on the data.ts answers.
-    // So we must invert them to correctly display 'High' on the radar chart.
-    if (d === "Neuroticism" || d === "Agreeableness") {
-      score = 100 - score;
-    }
-
-    return { dimension: d, score };
+  const out = {} as Record<Dimension, number>;
+  dimensionsList.forEach((d) => {
+    out[d] = df > 0 ? Math.sqrt(ss[d] / df) : DEFAULT_RATER_SPREAD;
   });
+  return out;
+}
+
+export interface TraitRange {
+  dimension: Dimension;
+  /** Self-rating score, or null if they haven't rated themselves. */
+  self: number | null;
+  /** Friends' average score, or null if no friends have rated them. */
+  friends: number | null;
+  /** Half-width of the 80% likely range around `friends`. */
+  margin: number | null;
+  friendCount: number;
+}
+
+/**
+ * Per dimension: the self-rating, the friends' average, and how far the
+ * friends' average could plausibly move with more raters. The margin uses
+ * the group-wide disagreement between friends, so it works even for someone
+ * with a single rater.
+ */
+export function getTraitRanges(
+  subject: string,
+  allData: SurveyRating[],
+): TraitRange[] {
+  const self = selfRatingOf(subject, allData);
+  const friends = friendRatingsOf(subject, allData);
+  const selfScores = self ? rowDimensionScores(self) : null;
+  const friendScores = friends.length ? meanDimensionScores(friends) : null;
+  const spread = friends.length ? friendRatingSpread(allData) : null;
+
+  return dimensionsList.map((d) => ({
+    dimension: d,
+    self: selfScores ? Math.round(selfScores[d]) : null,
+    friends: friendScores ? Math.round(friendScores[d]) : null,
+    margin: spread
+      ? Math.round((LIKELY_RANGE_Z * spread[d]) / Math.sqrt(friends.length))
+      : null,
+    friendCount: friends.length,
+  }));
+}
+
+// ─── Answer highlights (#10) ─────────────────────────────────────────
+
+/** Which of a question's three answers a slider value is closest to: 0, 1 or 2. */
+export function answerIndexFor(value: number): 0 | 1 | 2 {
+  return Math.max(0, Math.min(2, Math.floor((value * 3) / 100))) as 0 | 1 | 2;
+}
+
+export interface AnswerHighlight {
+  questionIndex: number;
+  /** The answer most friends' sliders landed closest to. */
+  answerIndex: 0 | 1 | 2;
+  /** How many friends landed on it, out of `total`. */
+  count: number;
+  total: number;
+  /** The answer their own self-rating landed on, if they rated themselves. */
+  selfAnswerIndex: 0 | 1 | 2 | null;
+}
+
+/**
+ * The most quotable questions about `subject`: where friends agree on a
+ * specific answer, preferring vivid (non-middle) answers and ones that
+ * differ from how the person answered for themselves.
+ *
+ * Pass RAW rows: this quotes what friends actually picked, so it must not
+ * see standardized or habit-corrected values.
+ */
+export function getAnswerHighlights(
+  subject: string,
+  rawData: SurveyRating[],
+  maxResults = 3,
+): AnswerHighlight[] {
+  const friends = friendRatingsOf(subject, rawData);
+  if (friends.length === 0) return [];
+  const self = selfRatingOf(subject, rawData);
+
+  const scored = questionKeys.map((qKey, questionIndex) => {
+    const counts = [0, 0, 0];
+    friends.forEach((r) => counts[answerIndexFor(Number(r[qKey]) || 0)]++);
+    // Most-picked answer; on a tie prefer an end answer over the middle one.
+    const answerIndex = ([0, 2, 1] as const).reduce((best, i) =>
+      counts[i] > counts[best] ? i : best,
+    );
+    const selfAnswerIndex = self ? answerIndexFor(Number(self[qKey]) || 0) : null;
+    const share = counts[answerIndex] / friends.length;
+    const interest =
+      share +
+      (answerIndex !== 1 ? 0.3 : 0) +
+      (selfAnswerIndex !== null && selfAnswerIndex !== answerIndex ? 0.4 : 0);
+    const highlight: AnswerHighlight = {
+      questionIndex,
+      answerIndex,
+      count: counts[answerIndex],
+      total: friends.length,
+      selfAnswerIndex,
+    };
+    return { highlight, interest };
+  });
+
+  return scored
+    // With several friends, a "consensus" of one isn't worth quoting.
+    .filter(({ highlight: h }) => h.total < 2 || h.count >= 2)
+    .sort((a, b) => b.interest - a.interest || b.highlight.count - a.highlight.count)
+    .slice(0, maxResults)
+    .map(({ highlight }) => highlight);
 }
 
 // ─── Subject answer averages ─────────────────────────────────────────
 
-/** Average score for each of the 15 questions for a given subject. */
+/** Average score for each question for a given subject. */
 export function getSubjectAverageAnswers(
   subject: string,
   allData: SurveyRating[],
 ): number[] {
   const ratings = ratingsOf(subject, allData);
-  if (ratings.length === 0) return new Array(15).fill(50);
+  if (ratings.length === 0) return new Array(QUESTION_COUNT).fill(50);
   return averageAnswerRows(ratings);
 }
 
 /**
- * Average score for each of the 15 questions for a given subject,
+ * Average score for each question for a given subject,
  * explicitly excluding a specific rater's rating from the average.
  */
 export function getSubjectAverageAnswersExcluding(
@@ -197,19 +389,23 @@ export function getSubjectAverageAnswersExcluding(
 // ─── Similarity ──────────────────────────────────────────────────────
 
 /**
- * Calculates the similarity between two sets of 15 answers.
+ * Calculates the similarity between two full sets of answers.
  * Uses Manhattan distance to calculate a percentage (0 to 100).
  */
 export function getSimilarityPercentage(
   answersA: number[],
   answersB: number[],
 ): number {
-  if (answersA.length !== 15 || answersB.length !== 15) return 0;
+  if (
+    answersA.length !== QUESTION_COUNT ||
+    answersB.length !== QUESTION_COUNT
+  )
+    return 0;
   let totalDifference = 0;
-  for (let i = 0; i < 15; i++) {
+  for (let i = 0; i < QUESTION_COUNT; i++) {
     totalDifference += Math.abs(answersA[i] - answersB[i]);
   }
-  const maxDifference = 1500; // 15 * 100
+  const maxDifference = QUESTION_COUNT * 100;
   const similarity = 100 * (1 - totalDifference / maxDifference);
   return Math.round(similarity);
 }
@@ -257,13 +453,7 @@ export function getRatingStats(ratings: SurveyRating[]): RatingStats | null {
   const values: number[] = [];
   ratings.forEach((r) => {
     questions.forEach((q, idx) => {
-      const qKey = `q${idx + 1}` as keyof SurveyRating;
-      let val = Number(r[qKey]) || 0;
-      // Flip Agreeableness and Neuroticism so 100 represents High Trait
-      if (q.dimension === "Agreeableness" || q.dimension === "Neuroticism") {
-        val = 100 - val;
-      }
-      values.push(val);
+      values.push(traitValue(q, Number(r[questionKeys[idx]]) || 0));
     });
   });
 
@@ -413,8 +603,7 @@ export function getControversyIndex(
   if (ratings.length < 2) return null;
 
   const perQuestion: number[] = [];
-  for (let i = 0; i < 15; i++) {
-    const qKey = `q${i + 1}` as keyof SurveyRating;
+  for (const qKey of questionKeys) {
     const values = ratings.map((r) => Number(r[qKey]) || 0);
     const avg = values.reduce((a, b) => a + b, 0) / values.length;
     const variance =
@@ -436,7 +625,8 @@ export function getControversyIndex(
 /**
  * Dimension Leaderboard.
  * Returns all subjects ranked by score for a given OCEAN dimension.
- * Uses consensus scores (all raters averaged).
+ * Uses consensus scores (all raters averaged, shrunk toward the group
+ * for people with few ratings).
  */
 export function getDimensionLeaderboard(
   dimension: string,
@@ -445,7 +635,7 @@ export function getDimensionLeaderboard(
 ): { subject: string; score: number }[] {
   const results = subjects
     .map((subject) => {
-      const scores = getSubjectScores(subject, allData);
+      const scores = getConsensusScores(subject, allData);
       const dimScore = scores.find((s) => s.dimension === dimension);
       return { subject, score: dimScore?.score ?? 50 };
     })
@@ -833,10 +1023,10 @@ export function getRaterStats(
     if (othersAvg) {
       const myAnswers = extractAnswers(r);
       let diff = 0;
-      for (let i = 0; i < 15; i++) {
+      for (let i = 0; i < QUESTION_COUNT; i++) {
         diff += Math.abs(myAnswers[i] - othersAvg[i]);
       }
-      totalDeviation += diff / 15; // Average per-question deviation
+      totalDeviation += diff / QUESTION_COUNT; // Average per-question deviation
       deviationCount++;
     }
   });

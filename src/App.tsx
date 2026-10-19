@@ -1,109 +1,95 @@
 import { AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import "./App.css";
 import { fetchData, submitSurveys, type SurveyRating } from "./api";
 import { Dashboard } from "./components/Dashboard";
 import { Intro } from "./components/Intro";
 import { Survey } from "./components/Survey";
-import { questions } from "./data";
-import type { SurveyState } from "./types";
-import { standardizeAnswers } from "./utils";
+import { QUESTION_COUNT } from "./data";
+import {
+  clearSession,
+  emptySession,
+  initialAnswers,
+  loadSession,
+  saveSession,
+} from "./storage";
+import type { AppScreen, SurveyState } from "./types";
+import { prepareAnalysisData } from "./scoring";
+import {
+  getSubjectSummaries,
+  ratingFromAnswers,
+  selfRatingOf,
+} from "./utils";
 
-const LOCAL_STORAGE_KEY = "vibeCheckState";
-const INITIAL_ANSWERS = new Array(questions.length).fill(50);
+const LOAD_ERROR_MESSAGE =
+  "Couldn't load the latest results. Check your connection and hit Refresh.";
+
+/** Fields that reset whenever a new survey starts. */
+const freshSurvey = () => ({
+  answers: initialAnswers(),
+  currentQuestionIndex: 0,
+});
 
 function App() {
-  const [state, setState] = useState<SurveyState>(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (saved) {
-      try {
-        return JSON.parse(saved).state;
-      } catch {
-        console.warn("Failed to parse local storage");
-      }
-    }
-    return {
-      userName: "",
-      targetName: "",
-      mode: "self",
-      answers: [...INITIAL_ANSWERS],
-      currentQuestionIndex: 0,
-    };
-  });
-
-  const [hasSubmittedSelf, setHasSubmittedSelf] = useState<boolean>(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (saved) {
-      try {
-        return JSON.parse(saved).hasSubmittedSelf;
-      } catch {
-        console.warn("Failed to parse local storage");
-      }
-    }
-    return false;
-  });
-
-  const [appState, setAppState] = useState<"intro" | "survey" | "analysis">(
-    () => {
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (parsed.appState) return parsed.appState;
-          if (parsed.hasSubmittedSelf) return "analysis";
-          if (parsed.state.userName) return "survey";
-        } catch {
-          console.warn("Failed to parse local storage");
-        }
-      }
-      return "intro";
-    },
+  // Read localStorage once; each piece of state starts from the same snapshot.
+  const [saved] = useState(loadSession);
+  const [state, setState] = useState<SurveyState>(saved.state);
+  const [hasSubmittedSelf, setHasSubmittedSelf] = useState(
+    saved.hasSubmittedSelf,
   );
+  const [appState, setAppState] = useState<AppScreen>(saved.appState);
 
-  const [analysisData, setAnalysisData] = useState<SurveyRating[]>([]);
+  // Raw rows as stored in the sheet. The analysis rows are derived from these
+  // on every change, so the scoring pipeline always runs over the full raw
+  // dataset and is never applied twice.
+  const [rawData, setRawData] = useState<SurveyRating[]>([]);
+  const analysisData = useMemo(() => prepareAnalysisData(rawData), [rawData]);
   const [isLoading, setIsLoading] = useState(appState === "analysis");
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    localStorage.setItem(
-      LOCAL_STORAGE_KEY,
-      JSON.stringify({ state, hasSubmittedSelf, appState }),
-    );
+    saveSession({ state, hasSubmittedSelf, appState });
   }, [state, hasSubmittedSelf, appState]);
 
-  const handleRefresh = async () => {
+  /** Fetch the latest rows; on failure keep what we have and show an error. */
+  const loadResults = useCallback(async (isActive: () => boolean) => {
     setIsLoading(true);
     try {
       const data = await fetchData();
-      setAnalysisData(standardizeAnswers(data));
+      if (isActive()) {
+        setRawData(data);
+        setLoadError(null);
+      }
     } catch (err) {
       console.error(err);
+      if (isActive()) setLoadError(LOAD_ERROR_MESSAGE);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  const handleRefresh = () => loadResults(() => true);
 
   useEffect(() => {
+    if (appState !== "analysis") return;
     let active = true;
-    if (appState === "analysis") {
-      const load = async () => {
-        setIsLoading(true);
-        try {
-          const data = await fetchData();
-          if (active) {
-            setAnalysisData(standardizeAnswers(data));
-          }
-        } catch (err) {
-          console.error(err);
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      load();
-    }
+    const load = async () => loadResults(() => active);
+    load();
     return () => {
       active = false;
     };
-  }, [appState]);
+  }, [appState, loadResults]);
+
+  const handleSwitchUser = () => {
+    setSubmitError(null);
+    setLoadError(null);
+    clearSession();
+    const fresh = emptySession();
+    setState(fresh.state);
+    setHasSubmittedSelf(fresh.hasSubmittedSelf);
+    setAppState(fresh.appState);
+  };
 
   const handleStartOver = () => {
     if (state.mode === "friend") {
@@ -112,35 +98,19 @@ function App() {
       ) {
         setState((prev) => ({
           ...prev,
+          ...freshSurvey(),
           targetName: prev.userName,
           mode: "self",
-          answers: [...INITIAL_ANSWERS],
-          currentQuestionIndex: 0,
         }));
         setAppState("analysis");
       }
-    } else {
-      if (
-        window.confirm(
-          "Are you sure you want to start over? This will reset your progress and forget your name.",
-        )
-      ) {
-        handleSwitchUser();
-      }
+    } else if (
+      window.confirm(
+        "Are you sure you want to start over? This will reset your progress and forget your name.",
+      )
+    ) {
+      handleSwitchUser();
     }
-  };
-
-  const handleSwitchUser = () => {
-    localStorage.removeItem(LOCAL_STORAGE_KEY);
-    setState({
-      userName: "",
-      targetName: "",
-      mode: "self",
-      answers: [...INITIAL_ANSWERS],
-      currentQuestionIndex: 0,
-    });
-    setHasSubmittedSelf(false);
-    setAppState("intro");
   };
 
   const handleStartSelfSurvey = async (e: React.FormEvent) => {
@@ -149,17 +119,10 @@ function App() {
     if (!typedName) return;
 
     setIsLoading(true);
+    setLoadError(null);
     try {
       const data = await fetchData();
-
-      // Check if this user has already self-rated (case-insensitive)
-      const existingRecord = data.find(
-        (row) =>
-          row.rater &&
-          row.subject &&
-          row.rater.toLowerCase() === typedName.toLowerCase() &&
-          row.subject.toLowerCase() === typedName.toLowerCase(),
-      );
+      const existingRecord = selfRatingOf(typedName, data);
 
       if (existingRecord) {
         // They've already taken it! Skip the survey.
@@ -170,43 +133,37 @@ function App() {
           targetName: existingRecord.subject,
           mode: "self",
         }));
-        setAnalysisData(standardizeAnswers(data));
+        setRawData(data);
         setAppState("analysis");
       } else {
         setState((prev) => ({
           ...prev,
+          ...freshSurvey(),
           userName: typedName,
           targetName: typedName,
           mode: "self",
-          answers: [...INITIAL_ANSWERS],
-          currentQuestionIndex: 0,
         }));
         setAppState("survey");
       }
     } catch (err) {
       console.error("Failed to check user status", err);
-      // Fallback: just go to survey
-      setState((prev) => ({
-        ...prev,
-        userName: typedName,
-        targetName: typedName,
-        mode: "self",
-        answers: [...INITIAL_ANSWERS],
-        currentQuestionIndex: 0,
-      }));
-      setAppState("survey");
+      // Don't guess: if we can't check, a returning user would be sent
+      // through the survey again and submit a duplicate self-rating.
+      setLoadError(
+        "Couldn't reach the server to look up your name. Please try again.",
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleStartFriendSurvey = (friendName: string) => {
+    setSubmitError(null);
     setState((prev) => ({
       ...prev,
+      ...freshSurvey(),
       targetName: friendName,
       mode: "friend",
-      answers: [...INITIAL_ANSWERS],
-      currentQuestionIndex: 0,
     }));
     setAppState("survey");
   };
@@ -218,7 +175,7 @@ function App() {
   };
 
   const handleNext = () => {
-    if (state.currentQuestionIndex < questions.length - 1) {
+    if (state.currentQuestionIndex < QUESTION_COUNT - 1) {
       setState((prev) => ({
         ...prev,
         currentQuestionIndex: prev.currentQuestionIndex + 1,
@@ -237,26 +194,13 @@ function App() {
 
   const handleSubmit = async () => {
     setIsLoading(true);
+    setSubmitError(null);
 
-    const surveyRating: SurveyRating = {
-      rater: state.userName,
-      subject: state.targetName,
-      q1: state.answers[0],
-      q2: state.answers[1],
-      q3: state.answers[2],
-      q4: state.answers[3],
-      q5: state.answers[4],
-      q6: state.answers[5],
-      q7: state.answers[6],
-      q8: state.answers[7],
-      q9: state.answers[8],
-      q10: state.answers[9],
-      q11: state.answers[10],
-      q12: state.answers[11],
-      q13: state.answers[12],
-      q14: state.answers[13],
-      q15: state.answers[14],
-    };
+    const surveyRating = ratingFromAnswers(
+      state.userName,
+      state.targetName,
+      state.answers,
+    );
 
     try {
       await submitSurveys([surveyRating]);
@@ -265,69 +209,25 @@ function App() {
       }
 
       // Optimistically add the new rating so it appears immediately
-      setAnalysisData((prev) => standardizeAnswers([...prev, surveyRating]));
+      setRawData((prev) => [...prev, surveyRating]);
 
       setAppState("analysis");
     } catch (err) {
       console.error("Submission failed", err);
+      setSubmitError(
+        err instanceof Error && err.message
+          ? `Your answers weren't saved: ${err.message}`
+          : "Your answers weren't saved. Please try again.",
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Derived state for analysis
-  const subjectsMap = new Map<
-    string,
-    { displayName: string; raters: Set<string>; ratedCount: number }
-  >();
-
-  analysisData.forEach((row) => {
-    if (!row.subject || !row.rater) return;
-
-    const subjectKey = row.subject.trim().toLowerCase();
-    const raterKey = row.rater.trim().toLowerCase();
-
-    if (!subjectsMap.has(subjectKey)) {
-      subjectsMap.set(subjectKey, {
-        displayName: row.subject.trim(),
-        raters: new Set(),
-        ratedCount: 0,
-      });
-    }
-
-    // Also ensure the rater exists in the map if they are also a subject, but we might only want to count ratings for subjects we actually track.
-    // Actually, we can just calculate ratedCount in a separate pass or track it separately.
-    if (!subjectsMap.has(raterKey)) {
-      subjectsMap.set(raterKey, {
-        displayName: row.rater.trim(),
-        raters: new Set(),
-        ratedCount: 0,
-      });
-    }
-
-    const subjectData = subjectsMap.get(subjectKey)!;
-    subjectData.raters.add(raterKey);
-
-    if (raterKey !== subjectKey) {
-      subjectsMap.get(raterKey)!.ratedCount += 1;
-    }
-  });
-
-  const subjectsArray = Array.from(subjectsMap.values()).map((data) => {
-    // Friend count is total raters minus the person themselves (if they rated themselves)
-    const hasSelfRated = data.raters.has(data.displayName.toLowerCase());
-    const friendCount = hasSelfRated ? data.raters.size - 1 : data.raters.size;
-
-    return {
-      subject: data.displayName,
-      friendCount,
-      ratedCount: data.ratedCount,
-      hasCurrentRater: data.raters.has(state.userName.trim().toLowerCase()),
-    };
-  });
-
-  // Sort available subjects alphabetically
-  subjectsArray.sort((a, b) => a.subject.localeCompare(b.subject));
+  const subjectsArray = useMemo(
+    () => getSubjectSummaries(analysisData, state.userName),
+    [analysisData, state.userName],
+  );
 
   return (
     <>
@@ -342,6 +242,7 @@ function App() {
               }
               handleStartSelfSurvey={handleStartSelfSurvey}
               isLoading={isLoading}
+              loadError={loadError}
             />
           )}
 
@@ -349,6 +250,7 @@ function App() {
             <Survey
               state={state}
               isLoading={isLoading}
+              submitError={submitError}
               handleStartOver={handleStartOver}
               handleSliderChange={handleSliderChange}
               handlePrev={handlePrev}
@@ -362,6 +264,8 @@ function App() {
               state={state}
               isLoading={isLoading}
               analysisData={analysisData}
+              rawData={rawData}
+              loadError={loadError}
               subjectsArray={subjectsArray}
               handleSwitchUser={handleSwitchUser}
               handleStartFriendSurvey={handleStartFriendSurvey}

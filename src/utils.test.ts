@@ -16,8 +16,17 @@ import {
   getArchetype,
   getSimilarityMatrix,
   getRaterStats,
+  getSubjectSummaries,
+  ratingFromAnswers,
+  selfRatingOf,
+  traitValue,
+  answerIndexFor,
+  getAnswerHighlights,
+  getConsensusScores,
+  getTraitRanges,
 } from "./utils";
 import type { SurveyRating } from "./api";
+import { QUESTION_COUNT, questionKeys, questions } from "./data";
 
 const mockData: SurveyRating[] = [
   {
@@ -562,5 +571,196 @@ describe("utils", () => {
     it("should return null for unknown rater", () => {
       expect(getRaterStats("Nobody", analysisData)).toBeNull();
     });
+  });
+});
+
+describe("question keys", () => {
+  it("has one key per question, in order", () => {
+    expect(QUESTION_COUNT).toBe(questions.length);
+    expect(questionKeys).toEqual(questions.map((_, i) => `q${i + 1}`));
+  });
+
+  it("round-trips answers through a rating row", () => {
+    const answers = questions.map((_, i) => i * 5);
+    const row = ratingFromAnswers("Ann", "Bob", answers);
+    expect(row).toMatchObject({ rater: "Ann", subject: "Bob", q1: 0, q2: 5 });
+    expect(extractAnswers(row)).toEqual(answers);
+  });
+});
+
+describe("traitValue", () => {
+  const forward = questions.find((q) => !q.reversed)!;
+  const reversed = questions.find((q) => q.reversed)!;
+
+  it("leaves forward-scored answers alone", () => {
+    expect(traitValue(forward, 80)).toBe(80);
+  });
+
+  it("flips reverse-scored answers", () => {
+    expect(traitValue(reversed, 80)).toBe(20);
+  });
+
+  it("drives getSubjectScores: a reversed question pushes its dimension the other way", () => {
+    const answers = questions.map((q) => (q.reversed ? 0 : 100));
+    const scores = getSubjectScores("Ann", [ratingFromAnswers("Ann", "Ann", answers)]);
+    // Every dimension should come out HIGH, reversed or not.
+    scores.forEach((s) => expect(s.score).toBe(100));
+  });
+});
+
+describe("selfRatingOf", () => {
+  it("matches names ignoring case and surrounding whitespace", () => {
+    const row = ratingFromAnswers(" ann ", "ANN", new Array(QUESTION_COUNT).fill(50));
+    expect(selfRatingOf("Ann", [row])).toBe(row);
+  });
+
+  it("ignores ratings of other people", () => {
+    const row = ratingFromAnswers("Ann", "Bob", new Array(QUESTION_COUNT).fill(50));
+    expect(selfRatingOf("Ann", [row])).toBeUndefined();
+  });
+});
+
+describe("getSubjectSummaries", () => {
+  const blank = new Array(QUESTION_COUNT).fill(50);
+  const data = [
+    ratingFromAnswers("Bob", "Bob", blank),
+    ratingFromAnswers("Ann", "Bob", blank),
+    ratingFromAnswers("cara ", "bob", blank),
+    ratingFromAnswers("Ann", "Cara", blank),
+    ratingFromAnswers("Dan", "Dan", blank),
+  ];
+
+  it("lists everyone who rated or was rated, sorted by name", () => {
+    expect(getSubjectSummaries(data, "").map((s) => s.subject)).toEqual([
+      "Ann",
+      "Bob",
+      "cara",
+      "Dan",
+    ]);
+  });
+
+  it("counts friends and ratings given, excluding self-ratings", () => {
+    const byName = Object.fromEntries(
+      getSubjectSummaries(data, "").map((s) => [s.subject, s]),
+    );
+    expect(byName.Bob).toMatchObject({ friendCount: 2, ratedCount: 0 });
+    expect(byName.Ann).toMatchObject({ friendCount: 0, ratedCount: 2 });
+    expect(byName.cara).toMatchObject({ friendCount: 1, ratedCount: 1 });
+    expect(byName.Dan).toMatchObject({ friendCount: 0, ratedCount: 0 });
+  });
+
+  it("flags subjects the current user has already rated", () => {
+    const rated = getSubjectSummaries(data, " ANN ")
+      .filter((s) => s.hasCurrentRater)
+      .map((s) => s.subject);
+    expect(rated).toEqual(["Bob", "cara"]);
+  });
+
+  it("skips rows with a blank rater or subject", () => {
+    expect(getSubjectSummaries([ratingFromAnswers("", "Bob", blank)], "")).toEqual([]);
+  });
+});
+
+// ─── Scoring views ──────────────────────────────────────────────────
+
+const fill = (v: number) => new Array(QUESTION_COUNT).fill(v);
+/** Answers that put someone at `score` on every trait (reversed questions flipped). */
+const atTrait = (score: number) =>
+  questions.map((q) => (q.reversed ? 100 - score : score));
+
+describe("getConsensusScores", () => {
+  const data = [
+    ratingFromAnswers("Ann", "Solo", atTrait(100)),
+    ...["Ann", "Bob", "Cara", "Dan"].map((r) =>
+      ratingFromAnswers(r, "Steady", atTrait(90)),
+    ),
+    // A group of otherwise middle-of-the-road people, as in real data where
+    // standardization puts the group average near 50.
+    ...["Ann", "Bob", "Cara", "Dan", "Eve", "Fay", "Gus", "Hal"].map((r) =>
+      ratingFromAnswers(r, r, atTrait(50)),
+    ),
+  ];
+
+  it("pulls a single rating toward the group average", () => {
+    const solo = getConsensusScores("Solo", data)[0].score;
+    expect(solo).toBeLessThan(100);
+    expect(solo).toBeGreaterThan(50);
+  });
+
+  it("lets consistent ratings from several people outrank one extreme rating", () => {
+    const board = getDimensionLeaderboard("Openness", ["Solo", "Steady"], data);
+    expect(board.map((b) => b.subject)).toEqual(["Steady", "Solo"]);
+  });
+
+  it("returns nothing for someone nobody rated", () => {
+    expect(getConsensusScores("Nobody", data)).toEqual([]);
+  });
+});
+
+describe("getTraitRanges", () => {
+  it("reports self, friends, and a margin per trait", () => {
+    const data = [
+      ratingFromAnswers("Ann", "Ann", atTrait(80)),
+      ratingFromAnswers("Bob", "Ann", atTrait(40)),
+    ];
+    const ranges = getTraitRanges("Ann", data);
+    expect(ranges).toHaveLength(5);
+    expect(ranges[0]).toMatchObject({ self: 80, friends: 40, friendCount: 1 });
+    // No one has 2+ friend raters, so the default spread is used.
+    expect(ranges[0].margin).toBe(Math.round(1.28 * 20));
+  });
+
+  it("narrows the range as more friends rate", () => {
+    const raters = ["B", "C", "D", "E", "F", "G", "H", "I"];
+    const scores = [40, 60, 45, 55, 50, 42, 58, 50];
+    const data = raters.map((r, i) => ratingFromAnswers(r, "Ann", atTrait(scores[i])));
+    const two = getTraitRanges("Ann", data.slice(0, 2))[0].margin!;
+    const eight = getTraitRanges("Ann", data)[0].margin!;
+    expect(eight).toBeLessThan(two);
+  });
+
+  it("leaves friends and margin empty with no friend ratings", () => {
+    const ranges = getTraitRanges("Ann", [ratingFromAnswers("Ann", "Ann", fill(50))]);
+    expect(ranges[0]).toMatchObject({ friends: null, margin: null, self: 50 });
+  });
+});
+
+describe("answerIndexFor", () => {
+  it("maps slider values to the nearest of the three answers", () => {
+    expect([0, 33, 34, 50, 66, 67, 100].map(answerIndexFor)).toEqual([
+      0, 0, 1, 1, 1, 2, 2,
+    ]);
+  });
+});
+
+describe("getAnswerHighlights", () => {
+  it("leads with an answer friends agree on that differs from the self-rating", () => {
+    const self = fill(50);
+    self[1] = 0; // Ann puts herself on the left answer for question 2
+    const friend = fill(50);
+    friend[1] = 95; // ...her friends all put her on the right
+    const data = [
+      ratingFromAnswers("Ann", "Ann", self),
+      ratingFromAnswers("Bob", "Ann", friend),
+      ratingFromAnswers("Cara", "Ann", friend),
+      ratingFromAnswers("Dan", "Ann", friend),
+    ];
+    expect(getAnswerHighlights("Ann", data)[0]).toEqual({
+      questionIndex: 1,
+      answerIndex: 2,
+      count: 3,
+      total: 3,
+      selfAnswerIndex: 0,
+    });
+  });
+
+  it("skips questions where no two friends agree", () => {
+    const answers = [fill(10), fill(50), fill(90)];
+    const data = answers.map((a, i) => ratingFromAnswers(`F${i}`, "Ann", a));
+    expect(getAnswerHighlights("Ann", data)).toEqual([]);
+  });
+
+  it("returns nothing when no friends have rated", () => {
+    expect(getAnswerHighlights("Ann", [ratingFromAnswers("Ann", "Ann", fill(50))])).toEqual([]);
   });
 });

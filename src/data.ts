@@ -1,4 +1,26 @@
-export const questions = [
+export const dimensionsList = [
+  "Openness",
+  "Conscientiousness",
+  "Extraversion",
+  "Agreeableness",
+  "Neuroticism",
+] as const;
+
+export type Dimension = (typeof dimensionsList)[number];
+
+export interface Question {
+  question: string;
+  /** Answers shown at the left (0), middle (50) and right (100) of the slider. */
+  answers: [string, string, string];
+  dimension: Dimension;
+  /**
+   * True when the right-hand (100) answer means LOW in this dimension,
+   * so the answer must be flipped before scoring the trait.
+   */
+  reversed?: boolean;
+}
+
+export const questions: Question[] = [
   // --- CYCLE 1 ---
   {
     question:
@@ -38,6 +60,7 @@ export const questions = [
       "Just tell them the truth right away. It's better to be honest!",
     ],
     dimension: "Agreeableness",
+    reversed: true,
   },
   {
     question:
@@ -48,6 +71,7 @@ export const questions = [
       "Totally calm. It's just juice. I quietly clean it up without making a fuss.",
     ],
     dimension: "Neuroticism",
+    reversed: true,
   },
 
   // --- CYCLE 2 ---
@@ -90,6 +114,7 @@ export const questions = [
       "Never. I will get out the rulebook and prove that I am right no matter how long it takes.",
     ],
     dimension: "Agreeableness",
+    reversed: true,
   },
   {
     question:
@@ -100,6 +125,7 @@ export const questions = [
       "Doesn't bother me at all. I'll just zone out or enjoy the time to think.",
     ],
     dimension: "Neuroticism",
+    reversed: true,
   },
 
   // --- CYCLE 3 ---
@@ -142,6 +168,7 @@ export const questions = [
       "I grab it first and jokingly (but actually) claim victory.",
     ],
     dimension: "Agreeableness",
+    reversed: true,
   },
   {
     question:
@@ -152,5 +179,14 @@ export const questions = [
       "Oh well! I immediately just pivot and pick a different fun thing to do without getting upset.",
     ],
     dimension: "Neuroticism",
+    reversed: true,
   },
 ];
+
+export const QUESTION_COUNT = questions.length;
+
+/** Column key for each question's answer on a SurveyRating: q1, q2, … */
+export type QuestionKey = `q${number}`;
+export const questionKeys: QuestionKey[] = questions.map(
+  (_, i): QuestionKey => `q${i + 1}`,
+);

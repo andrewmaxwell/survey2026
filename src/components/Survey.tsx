@@ -7,6 +7,7 @@ import type { SurveyState } from "../types";
 interface SurveyProps {
   state: SurveyState;
   isLoading: boolean;
+  submitError?: string | null;
   handleStartOver: () => void;
   handleSliderChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handlePrev: () => void;
@@ -17,6 +18,7 @@ interface SurveyProps {
 export function Survey({
   state,
   isLoading,
+  submitError,
   handleStartOver,
   handleSliderChange,
   handlePrev,
@@ -105,6 +107,12 @@ export function Survey({
           </div>
         </div>
       </div>
+
+      {submitError && (
+        <p className="error-message" role="alert">
+          {submitError}
+        </p>
+      )}
 
       <div className="survey-footer">
         <button
